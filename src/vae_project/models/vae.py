@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import cast
 
 import torch
 import torch.nn as nn
@@ -161,7 +162,7 @@ class VariationalAutoencoder(nn.Module):
         Returns:
             Reconstructed tensor in [0, 1], shape (batch, input_dimension).
         """
-        return self.decoder(latent_sample)
+        return cast(Tensor, self.decoder(latent_sample))
 
     def forward(self, input_tensor: Tensor) -> VAEOutput:
         """Full VAE forward pass.

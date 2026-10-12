@@ -70,8 +70,6 @@ select = [
     "RUF", # ruff-specific rules
 ]
 ignore = [
-    "ANN101",  # missing type annotation for self (removed in ruff 0.4)
-    "ANN102",  # missing type annotation for cls (removed in ruff 0.4)
     "ANN001",  # missing type annotation for function argument (relaxed)
     "ANN401",  # dynamically typed expressions
     "S101",    # use of assert (allowed in tests)

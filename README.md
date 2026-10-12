@@ -333,6 +333,8 @@ Para habilitar, use o config com `supervised_component.enabled: true`:
 
 ```powershell
 python -m vae_project.cli run-pipeline --config configs/mnist_supervised_optional.yaml
+
+python -m vae_project.cli run-pipeline --config configs/fashion_mnist_supervised_optional.yaml
 ```
 
 > **Importante:** Os rótulos influenciam o treinamento apenas quando

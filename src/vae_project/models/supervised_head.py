@@ -15,6 +15,7 @@ reported separately and never mixed with unsupervised results.
 from __future__ import annotations
 
 import logging
+from typing import cast
 
 import torch.nn as nn
 from torch import Tensor
@@ -75,4 +76,4 @@ class SupervisedClassificationHead(nn.Module):
             Class logits, shape (batch, num_classes).
             Note: raw logits, not probabilities. Use with CrossEntropyLoss.
         """
-        return self.classifier(latent_representation)
+        return cast(Tensor, self.classifier(latent_representation))

@@ -27,8 +27,8 @@ import torch
 from vae_project.config.loader import save_resolved_config
 from vae_project.config.models import ExperimentConfig
 from vae_project.data.datasets import get_raw_datasets
-from vae_project.data.loaders import create_data_loaders
-from vae_project.data.splits import create_data_splits, save_class_distribution
+from vae_project.data.loaders import DataLoaders, create_data_loaders
+from vae_project.data.splits import DataSplits, create_data_splits, save_class_distribution
 from vae_project.evaluation.clustering_metrics import compute_clustering_metrics
 from vae_project.evaluation.latent_extraction import extract_latent_representations
 from vae_project.models.supervised_head import SupervisedClassificationHead
@@ -285,9 +285,9 @@ class ExperimentRunner:
     def _generate_reconstruction_figures(
         self,
         model: VariationalAutoencoder,
-        loaders,  # type: ignore[type-arg]
+        loaders: DataLoaders,
         device: torch.device,
-        splits,  # type: ignore[type-arg]
+        splits: DataSplits,
     ) -> None:
         """Generate reconstruction comparison and generated sample figures."""
         if self._run_dirs is None:
@@ -329,9 +329,9 @@ class ExperimentRunner:
     def _run_latent_analysis(
         self,
         model: VariationalAutoencoder,
-        loaders,  # type: ignore[type-arg]
+        loaders: DataLoaders,
         device: torch.device,
-        splits,  # type: ignore[type-arg]
+        splits: DataSplits,
     ) -> None:
         """Extract latent representations and generate projections."""
         if self._run_dirs is None:

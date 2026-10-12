@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -106,7 +107,7 @@ class LatentRepresentations:
 
         if save_npz:
             npz_path = output_dir / "latent_representations.npz"
-            save_data: dict[str, np.ndarray] = {
+            save_data: dict[str, Any] = {
                 "sample_indices": self.sample_indices,
                 "labels": self.labels,
                 "latent_means": self.latent_means,

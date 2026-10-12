@@ -54,7 +54,7 @@ def get_class_colors(
     Returns:
         List of color values, one per class.
     """
-    colormap = plt.cm.get_cmap(colormap_name)
+    colormap = matplotlib.colormaps[colormap_name]
     return [colormap(idx / max(num_classes - 1, 1)) for idx in range(num_classes)]
 
 
