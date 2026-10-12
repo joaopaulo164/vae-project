@@ -1,0 +1,48 @@
+# latent_dimensions_mnist.yaml — Latent dimension comparison for MNIST.
+# Uses the selected topology and varies latent dimension.
+# All other parameters are kept constant for fair comparison.
+
+project:
+  name: vae_project
+  description: "MNIST latent dimension comparison"
+  quick_mode: false
+
+dataset:
+  name: mnist
+  download: true
+  num_workers: 0
+
+model:
+  latent_dimension: 16   # Default; overridden per experiment
+  topology:
+    name: medium         # Use selected topology
+    hidden_dimensions: [512, 256]
+
+loss:
+  reconstruction_loss_type: bce
+  beta: 1.0
+  reduction: sum
+
+supervised_component:
+  enabled: false
+
+training:
+  max_epochs: 50
+  batch_size: 128
+
+early_stopping:
+  enabled: true
+  patience: 10
+
+optimizer:
+  learning_rate: 0.001
+
+runtime:
+  device: auto
+
+reproducibility:
+  global_seed: 42
+
+latent_dimension_comparison:
+  dimensions: [2, 8, 16, 32]
+  fixed_topology: medium

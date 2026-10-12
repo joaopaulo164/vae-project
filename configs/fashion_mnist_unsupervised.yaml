@@ -1,0 +1,44 @@
+# fashion_mnist_unsupervised.yaml — Fashion-MNIST unsupervised VAE.
+
+project:
+  name: vae_project
+  description: "Fashion-MNIST unsupervised VAE experiment"
+  quick_mode: false
+
+dataset:
+  name: fashion_mnist
+  download: true
+  num_workers: 0
+
+model:
+  latent_dimension: 16
+  topology:
+    name: medium
+    hidden_dimensions: [512, 256]
+
+loss:
+  reconstruction_loss_type: bce
+  beta: 1.0
+  reduction: sum
+
+supervised_component:
+  enabled: false
+
+training:
+  max_epochs: 50
+  batch_size: 128
+
+early_stopping:
+  enabled: true
+  patience: 10
+
+runtime:
+  device: auto
+
+reproducibility:
+  global_seed: 42
+
+projections:
+  methods: [pca, umap, tsne]
+  sampling:
+    max_samples: 5000

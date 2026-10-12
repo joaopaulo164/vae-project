@@ -1,0 +1,79 @@
+# smoke_test.yaml — Quick smoke test configuration.
+# Uses minimal data and epochs. Results are for code testing ONLY.
+# DO NOT report these results as scientific findings.
+
+project:
+  name: vae_project
+  description: "Smoke test — synthetic data, not for scientific reporting"
+  version: "0.1.0"
+  quick_mode: true
+
+paths:
+  data_dir: data
+  artifacts_dir: artifacts
+
+dataset:
+  name: mnist
+  download: false       # Smoke test uses synthetic data via CLI
+  num_workers: 0
+  pin_memory: false
+
+splits:
+  validation_fraction: 0.1
+  seed: 42
+  stratified: true
+  quick_mode_train_size: 200
+  quick_mode_val_size: 50
+
+model:
+  latent_dimension: 4
+  input_dimension: 784
+  topology:
+    name: small
+    hidden_dimensions: [64, 32]
+
+loss:
+  reconstruction_loss_type: bce
+  beta: 1.0
+  reduction: sum
+
+supervised_component:
+  enabled: false
+
+optimizer:
+  name: adam
+  learning_rate: 0.001
+
+training:
+  max_epochs: 3
+  batch_size: 64
+  log_interval_batches: 10
+
+early_stopping:
+  enabled: true
+  patience: 2
+  min_delta: 0.001
+
+runtime:
+  device: cpu
+
+reproducibility:
+  global_seed: 42
+
+projections:
+  methods: [pca]
+  sampling:
+    enabled: true
+    max_samples: 100
+
+metrics:
+  compute_silhouette: false
+  compute_calinski_harabasz: false
+  compute_davies_bouldin: false
+  compute_trustworthiness: false
+  compute_linear_classifier: false
+  silhouette_sample_size: 100
+
+plotting:
+  dpi: 72
+  save_svg: false

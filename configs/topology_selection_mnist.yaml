@@ -1,0 +1,43 @@
+# topology_selection_mnist.yaml — Topology selection for MNIST.
+# Trains small, medium, and deep topologies and selects the best.
+
+project:
+  name: vae_project
+  description: "MNIST topology selection experiment"
+  quick_mode: false
+
+dataset:
+  name: mnist
+  download: true
+  num_workers: 0
+
+model:
+  latent_dimension: 16   # Fixed latent dim during topology selection
+  topology:
+    name: medium         # Will be overridden per candidate
+    hidden_dimensions: [512, 256]
+
+loss:
+  reconstruction_loss_type: bce
+  beta: 1.0
+  reduction: sum
+
+supervised_component:
+  enabled: false
+
+training:
+  max_epochs: 30
+  batch_size: 128
+
+early_stopping:
+  enabled: true
+  patience: 8
+
+optimizer:
+  learning_rate: 0.001
+
+runtime:
+  device: auto
+
+reproducibility:
+  global_seed: 42

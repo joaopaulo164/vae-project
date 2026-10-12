@@ -1,0 +1,66 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Datasets (downloaded at runtime)
+data/
+!data/.gitkeep
+
+# Experiment artifacts (generated at runtime)
+artifacts/
+!artifacts/.gitkeep
+
+# Checkpoints
+*.pt
+*.pth
+checkpoints/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+MANIFEST
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Coverage
+.coverage
+coverage.xml
+htmlcov/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+
+# pytest
+.pytest_cache/
+
+# Ruff
+.ruff_cache/
+
+# Logs (generated at runtime)
+*.log
+logs/
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints/
+
+# Pre-commit
+.pre-commit-cache/

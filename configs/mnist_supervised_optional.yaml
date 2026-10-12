@@ -1,0 +1,53 @@
+# mnist_supervised_optional.yaml — MNIST VAE with optional supervised component.
+# IMPORTANT: This is the optional supervised extension.
+# Results MUST be reported separately from the primary unsupervised experiment.
+# Comparison between supervised and unsupervised results is valid and encouraged.
+
+project:
+  name: vae_project
+  description: "MNIST VAE with optional supervised classification head"
+  quick_mode: false
+
+dataset:
+  name: mnist
+  download: true
+  num_workers: 0
+
+model:
+  latent_dimension: 16
+  topology:
+    name: medium
+    hidden_dimensions: [512, 256]
+
+loss:
+  reconstruction_loss_type: bce
+  beta: 1.0
+  reduction: sum
+
+supervised_component:
+  enabled: true                    # ENABLED: uses labels during training
+  classification_loss_weight: 1.0
+  hidden_dimensions: [128]
+  use_latent_mean: true            # Use mu for classification (deterministic)
+
+training:
+  max_epochs: 50
+  batch_size: 128
+
+early_stopping:
+  enabled: true
+  patience: 10
+
+optimizer:
+  learning_rate: 0.001
+
+runtime:
+  device: auto
+
+reproducibility:
+  global_seed: 42
+
+projections:
+  methods: [pca, umap, tsne]
+  sampling:
+    max_samples: 5000

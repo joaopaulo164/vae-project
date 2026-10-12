@@ -1,0 +1,53 @@
+cff-version: 1.2.0
+message: >
+  If you use this software in your research, please cite it using
+  the following metadata. Fill in the fields marked [REQUIRED] before
+  publishing. Do not cite placeholder values.
+
+title: "VAE Project: Variational Autoencoder Study for MNIST and Fashion-MNIST"
+type: software
+version: "0.1.0"
+
+# [REQUIRED] Replace with actual author information
+authors:
+  - family-names: "[AUTHOR_LAST_NAME]"
+    given-names: "[AUTHOR_FIRST_NAME]"
+    affiliation: "[INSTITUTION]"
+    orcid: "https://orcid.org/[YOUR-ORCID-ID]"  # Optional
+
+# [REQUIRED] Replace with actual publication date
+date-released: "2024-01-01"
+
+repository-code: "https://github.com/joaopaulo164/vae-project"
+
+abstract: >
+  A complete, reproducible Python project for training and analyzing
+  Variational Autoencoders (VAEs) on MNIST and Fashion-MNIST datasets.
+  Includes latent space analysis with PCA, UMAP, and t-SNE projections,
+  systematic topology selection, latent dimension comparison, and an
+  optional supervised classification extension. Designed for scientific
+  reproducibility and evidence generation for academic publications.
+
+keywords:
+  - variational autoencoder
+  - VAE
+  - latent space
+  - MNIST
+  - Fashion-MNIST
+  - dimensionality reduction
+  - deep learning
+  - PyTorch
+  - reproducible research
+
+license: MIT
+
+# [OPTIONAL] Add if a corresponding paper is published
+# preferred-citation:
+#   type: article
+#   title: "[PAPER TITLE]"
+#   authors:
+#     - family-names: "[AUTHOR_LAST_NAME]"
+#       given-names: "[AUTHOR_FIRST_NAME]"
+#   journal: "[JOURNAL NAME]"
+#   year: 2024
+#   doi: "[DOI]"

@@ -1,0 +1,154 @@
+# base.yaml — Default configuration values for the VAE project.
+# Override specific values in experiment-specific configs.
+# All paths are relative to the project root.
+
+project:
+  name: vae_project
+  description: "Variational Autoencoder study for MNIST and Fashion-MNIST"
+  version: "0.1.0"
+  quick_mode: false
+
+paths:
+  data_dir: data
+  artifacts_dir: artifacts
+  configs_dir: configs
+
+dataset:
+  name: mnist
+  download: true
+  num_workers: 0        # Safe default for Windows
+  pin_memory: false
+
+splits:
+  validation_fraction: 0.1
+  seed: 42
+  stratified: true
+  quick_mode_train_size: 500
+  quick_mode_val_size: 100
+
+model:
+  latent_dimension: 16
+  input_dimension: 784  # 28 * 28
+  output_activation: sigmoid
+  topology:
+    name: medium
+    hidden_dimensions: [512, 256]
+
+loss:
+  # BCE (Binary Cross-Entropy) is the methodologically preferred default
+  # for images normalized to [0, 1] interpreted as Bernoulli probabilities.
+  # MSE is available as an alternative.
+  reconstruction_loss_type: bce
+  beta: 1.0             # Standard VAE (beta=1). Values != 1.0 are logged.
+  reduction: sum
+
+supervised_component:
+  enabled: false
+  classification_loss_weight: 1.0
+  hidden_dimensions: [128]
+  use_latent_mean: true
+
+optimizer:
+  name: adam
+  learning_rate: 0.001
+  weight_decay: 0.0
+  betas: [0.9, 0.999]
+
+scheduler:
+  enabled: false
+  name: reduce_on_plateau
+  patience: 5
+  factor: 0.5
+  min_lr: 0.000001
+
+training:
+  max_epochs: 50
+  batch_size: 128
+  shuffle_train: true
+  log_interval_batches: 50
+
+early_stopping:
+  enabled: true
+  patience: 10
+  min_delta: 0.0001
+  monitor: val_total_loss
+  restore_best_weights: true
+
+runtime:
+  device: auto          # auto | cpu | cuda
+  cuda_fallback_to_cpu: false
+  deterministic: false
+  benchmark: true
+
+reproducibility:
+  global_seed: 42
+  deterministic_mode: false
+  warn_nondeterministic: true
+
+projections:
+  methods: [pca, umap, tsne]
+  pca_n_components: 2
+  umap:
+    n_neighbors: 15
+    min_dist: 0.1
+    metric: euclidean
+    random_state: 42
+  tsne:
+    perplexity: 30.0
+    learning_rate: 200.0
+    max_iter: 1000
+    init: pca
+    random_state: 42
+  sampling:
+    enabled: true
+    max_samples: 5000
+    stratified: true
+    seed: 42
+
+metrics:
+  compute_silhouette: true
+  compute_calinski_harabasz: true
+  compute_davies_bouldin: true
+  compute_trustworthiness: true
+  compute_linear_classifier: true
+  linear_classifier_name: logistic_regression
+  kmeans_n_clusters: null   # null = use number of classes
+  kmeans_random_state: 42
+  trustworthiness_n_neighbors: 5
+  silhouette_sample_size: 5000
+
+plotting:
+  dpi: 150
+  figure_width: 10.0
+  figure_height: 8.0
+  save_png: true
+  save_svg: true
+  colormap: tab10
+  point_size: 5.0
+  point_alpha: 0.7
+  max_display_points: 5000
+  reconstruction_grid_rows: 4
+  reconstruction_grid_cols: 8
+  generated_grid_rows: 4
+  generated_grid_cols: 8
+
+artifacts:
+  save_latent_csv: true
+  save_latent_npz: true
+  save_training_history_csv: true
+  save_training_history_json: true
+  save_metrics_json: true
+  save_environment_json: true
+  save_run_summary_md: true
+  save_artifact_manifest: true
+  save_resolved_config: true
+
+logging:
+  level: INFO
+  console_level: INFO
+  file_level: DEBUG
+  format: "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+
+latent_dimension_comparison:
+  dimensions: [2, 8, 16, 32]
+  fixed_topology: medium
