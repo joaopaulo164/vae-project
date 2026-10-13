@@ -60,10 +60,31 @@ Após rodar ambos os pipelines, compare:
 
 ## 3. Impacto da Dimensão Latente
 
+Fontes: `latent_dimension_comparison.csv`, `latent_dimension_comparison_summary.md` e
+as figuras de cada `latent_dim_N/figures/latent_space/`.
+
 - Como o loss de reconstrução varia com a dimensão latente?
 - Como o KL divergence varia?
 - Dimensões maiores produzem separação visual melhor?
 - A dimensão 2 (visualizável diretamente) preserva estrutura similar às demais?
+- As projeções PCA, UMAP e t-SNE das dimensões 8, 16 e 32 concordam entre si?
+
+Cuidados específicos:
+
+- A dimensão 2 é desenhada diretamente (`latent_mean_0` × `latent_mean_1`). As
+  demais são **projetadas** para 2D; formas e distâncias não são diretamente
+  comparáveis com o gráfico 2D direto.
+- A `validation_total_loss` do resumo consolidado indica apenas qual dimensão teve a
+  menor loss de validação. Ela **não** indica qual dimensão forma melhores
+  agrupamentos; isso exige a análise visual.
+- Somente o PCA possui variância explicada. Não reporte esse valor para UMAP ou t-SNE.
+- Projeções de dimensões maiores usam uma amostra estratificada (os títulos indicam
+  "sample of N"). Os índices estão em `projection_sample_indices.csv`.
+- Dimensões com status `partial` ou `failed` têm evidências incompletas; consulte
+  `error_summary` e o `run_summary.md` da dimensão antes de comparar.
+- O experimento é não supervisionado e usa um único seed (42). Diferenças pequenas
+  entre dimensões podem ser variação de treinamento e não devem ser tratadas como
+  conclusivas sem repetição.
 
 ---
 

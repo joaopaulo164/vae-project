@@ -20,6 +20,7 @@ from torch import Tensor
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+from vae_project.config.loader import config_to_dict
 from vae_project.config.models import (
     ExperimentConfig,
     OptimizerConfig,
@@ -30,6 +31,7 @@ from vae_project.models.vae import VariationalAutoencoder
 from vae_project.training.checkpointing import (
     CheckpointMetadata,
     ModelCheckpointer,
+    ResumeState,
 )
 from vae_project.training.early_stopping import EarlyStopping
 from vae_project.training.history import EpochRecord, TrainingHistory
@@ -336,12 +338,34 @@ class VAETrainer:
             classification_loss_weight=classification_weight,
         )
 
+    def resume_from_checkpoint(self) -> ResumeState:
+        """Restore model, optimizer, scheduler and early stopping from the best checkpoint.
+
+        The checkpoint stores the state of the best epoch, so training continues
+        at ``best_epoch + 1``; epochs run after the best one are not recovered.
+
+        Returns:
+            ResumeState; pass ``start_epoch=state.next_epoch`` to :meth:`fit`.
+
+        Raises:
+            CheckpointError: If the checkpoint lacks the state required to resume.
+        """
+        return self.checkpointer.load_for_resume(
+            model=self.model,
+            optimizer=self.optimizer,
+            device=self.device,
+            scheduler=self.scheduler,
+            early_stopping=self.early_stopping,
+            supervised_head=self.supervised_head,
+        )
+
     def fit(
         self,
         train_loader: DataLoader,  # type: ignore[type-arg]
         val_loader: DataLoader,  # type: ignore[type-arg]
         dataset_name: str,
         is_quick_mode: bool = False,
+        start_epoch: int = 0,
     ) -> TrainingHistory:
         """Train the VAE for the configured number of epochs.
 
@@ -350,19 +374,23 @@ class VAETrainer:
             val_loader: Validation data loader.
             dataset_name: Dataset name for checkpoint metadata.
             is_quick_mode: Whether this is a quick smoke test run.
+            start_epoch: 0-based epoch at which to start (non-zero after
+                :meth:`resume_from_checkpoint`).
 
         Returns:
             The completed TrainingHistory.
         """
         logger.info(
-            "Starting training: max_epochs=%d, dataset=%s, quick_mode=%s",
+            "Starting training: max_epochs=%d, start_epoch=%d, dataset=%s, quick_mode=%s",
             self.config.training.max_epochs,
+            start_epoch,
             dataset_name,
             is_quick_mode,
         )
+        resolved_config = config_to_dict(self.config)
 
         progress_bar = tqdm(
-            range(self.config.training.max_epochs),
+            range(start_epoch, self.config.training.max_epochs),
             desc="Training",
             unit="epoch",
         )
@@ -381,8 +409,18 @@ class VAETrainer:
             # Get current learning rate
             current_lr = self.optimizer.param_groups[0]["lr"]
 
-            # Check if this is the best epoch
+            # Update early stopping and LR scheduler *before* checkpointing so that
+            # the stored optimizer/scheduler/early-stopping state is the one to
+            # continue from at the next epoch.
             val_total = val_losses.total_loss.item()
+            should_stop = self.early_stopping.step(val_total, epoch)
+            if self.scheduler is not None:
+                if isinstance(self.scheduler, optim.lr_scheduler.ReduceLROnPlateau):
+                    self.scheduler.step(val_total)
+                else:
+                    self.scheduler.step()
+
+            # Check if this is the best epoch
             is_best = self.checkpointer.save_if_best(
                 model=self.model,
                 val_loss=val_total,
@@ -398,7 +436,16 @@ class VAETrainer:
                     dataset_name=dataset_name,
                     is_quick_mode=is_quick_mode,
                     run_id=self.checkpointer.run_id,
+                    seed=self.config.reproducibility.global_seed,
+                    experiment_type=self.config.experiment_type,
+                    learning_rate=current_lr,
+                    epochs_without_improvement=self.early_stopping.patience_counter,
                 ),
+                optimizer=self.optimizer,
+                scheduler=self.scheduler,
+                early_stopping=self.early_stopping,
+                supervised_head=self.supervised_head,
+                resolved_config=resolved_config,
             )
 
             # Record epoch
@@ -418,13 +465,6 @@ class VAETrainer:
                 early_stopping_counter=self.early_stopping.patience_counter,
             )
             self.history.append(record)
-
-            # Update LR scheduler
-            if self.scheduler is not None:
-                if isinstance(self.scheduler, optim.lr_scheduler.ReduceLROnPlateau):
-                    self.scheduler.step(val_total)
-                else:
-                    self.scheduler.step()
 
             # Update progress bar
             progress_bar.set_postfix(
@@ -451,8 +491,8 @@ class VAETrainer:
                 epoch_duration,
             )
 
-            # Early stopping check
-            if self.early_stopping.step(val_total, epoch):
+            # Early stopping check (state already updated above)
+            if should_stop:
                 logger.info("Training stopped early at epoch %d.", epoch)
                 break
 

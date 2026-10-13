@@ -1,158 +1,156 @@
-# Evaluation
+# Avaliação
 
-This document describes how the latent space and the model are evaluated, what
-each output means and what it cannot tell you. For how to read the results see
-[results_interpretation.md](results_interpretation.md).
+Este documento descreve como o espaço latente e o modelo são avaliados, o que cada
+saída significa e o que ela **não** permite concluir. Para a leitura dos resultados,
+veja [`results_interpretation.md`](results_interpretation.md). Convenção de idioma:
+esta documentação é em português; código, logs e os resumos gerados
+(`run_summary.md`, `latent_dimension_comparison_summary.md`) são em inglês.
 
-## 1. What the standard `train` pipeline evaluates
+## 1. O que cada fluxo avalia
 
-`ExperimentRunner` evaluates on the **validation split** after reloading the
-best checkpoint:
+**`train` / `run-pipeline`** (`ExperimentRunner`): avalia no split de **validação**,
+depois de recarregar o melhor checkpoint:
 
-1. reconstruction and generated-sample figures,
-2. latent extraction (`latent_data/`),
-3. projections (direct 2D, or PCA/UMAP/t-SNE),
-4. label-based clustering metrics in the original latent space
+1. figuras de reconstrução e de amostras geradas;
+2. extração latente (`latent_data/`);
+3. projeções (gráfico direto 2D, ou PCA/UMAP/t-SNE);
+4. métricas de agrupamento baseadas em rótulos no espaço latente original
    (`tables/projection_metrics.csv`).
 
-The linear classifier, reconstruction MSE/BCE numbers, K-Means ARI/NMI and
-trustworthiness are implemented but are **not** part of that pipeline:
-`VAEEvaluator` (linear probe, reconstruction metrics) and
-`run_final_evaluation` (test reconstruction metrics and clustering metrics)
-must be called from Python.
+**`compare-latent-dims`**: para **cada** dimensão (2, 8, 16, 32) treina um VAE novo,
+seleciona o melhor checkpoint por loss total de validação, **recarrega** esse
+checkpoint em um modelo novo e só então extrai `latent_mean` e gera as evidências.
+A análise nunca usa os pesos da última época. Os dois fluxos usam o mesmo serviço
+(`experiments/latent_evidence.py`).
 
-## 2. Latent extraction
+O classificador linear, as métricas numéricas de reconstrução, ARI/NMI do K-Means e
+a trustworthiness estão implementados, mas **não** fazem parte desses fluxos:
+`VAEEvaluator` e `run_final_evaluation` precisam ser chamados a partir de Python.
+
+## 2. Extração latente
 
 [`extract_latent_representations`](../src/vae_project/evaluation/latent_extraction.py)
-puts the model in `eval()` mode, runs the loader in order and stores, for
-each image:
+coloca o modelo em `eval()`, percorre o loader em ordem e grava, para cada imagem:
 
-* `latent_mean` (deterministic encoding; used for everything below),
-* `latent_log_variance`,
-* `latent_sample`: an explicit draw `mu + eps * exp(0.5 * log_var)`. Because
-  `eval()` returns the mean from `reparameterize`, the extraction code
-  samples separately; these draws are random and **not seeded** by the
-  function, so they change between calls unless the global RNG state is
-  identical.
+- `latent_mean` (codificação determinística; usada em todas as análises abaixo);
+- `latent_log_variance`;
+- `latent_sample`: amostra explícita `mu + eps * exp(0.5 * log_var)`. Essas amostras
+  são aleatórias e **não** têm seed próprio na função; mudam entre chamadas se o
+  estado global do RNG for diferente.
 
-Saved to `latent_data/latent_representations.csv`, with columns
-`sample_index`, `split`, `label`, `class_name`, `latent_mean_0..L-1`,
-`latent_log_var_0..L-1`, `latent_sample_0..L-1` (and `classifier_prediction`
-when a head is supplied), and to `.npz` when `artifacts.save_latent_npz` is
-true (arrays: `sample_indices`, `labels`, `latent_means`,
-`latent_log_variances`, `latent_samples`). `sample_index` is the position in
-the loader order of the split, not the original dataset index.
+Saída: `latent_data/latent_representations.csv`, com as colunas `sample_index`,
+`split`, `label`, `class_name`, `latent_mean_0..L-1`, `latent_log_var_0..L-1`,
+`latent_sample_0..L-1`, mais `seed`, `experiment_type` e `latent_dimension` na
+comparação; e `.npz` se `artifacts.save_latent_npz` for verdadeiro. `sample_index`
+é a posição na ordem do loader do split, não o índice original do dataset.
 
-Labels are attached for colouring and metrics; they are not inputs to the
-unsupervised model.
+Os rótulos servem para colorir e calcular métricas; **não** são entradas do modelo
+não supervisionado.
 
-## 3. Projections
+## 3. Projeções
 
-All projections use `latent_mean` of a class-balanced subsample of at most
-`projections.sampling.max_samples` (default 5,000) validation points
-(`stratified_subsample`; the chosen positions are saved in
-`latent_data/projection_sample_indices.csv`). With the default 6,000 validation
-images and 10 classes, 500 points per class are drawn when a class has enough
-samples, which gives 5,000 points. The subsample is class-balanced rather than
-proportional, so the plotted class frequencies may differ from the true ones.
+Todas as projeções usam `latent_mean` de uma subamostra estratificada de, no máximo,
+`projections.sampling.max_samples` (padrão 5.000) pontos de validação. As posições
+escolhidas ficam em `latent_data/projection_sample_indices.csv`. Como a seleção
+depende só dos rótulos e do seed, **todas as dimensões recebem os mesmos índices**.
+A subamostra é balanceada por classe, então as frequências desenhadas podem diferir
+das reais; os títulos das figuras indicam quando uma amostra foi usada.
 
-If `latent_dimension == 2`, the 2D latent means are plotted directly (up to
-`plotting.max_display_points`) and no PCA/UMAP/t-SNE is run.
+| Dimensão latente | Evidência visual |
+|---|---|
+| 2 | Gráfico **direto** de `latent_mean_0` × `latent_mean_1`. Não se executa PCA, UMAP nem t-SNE como substituto, e não há variância explicada. |
+| 8, 16, 32 | PCA, UMAP e t-SNE (PNG e SVG, com a dimensão no nome) mais o gráfico de variância explicada **do PCA**. |
 
-### PCA and explained variance
+### PCA e variância explicada
 
-PCA is linear. `pca_explained_variance.csv` stores, for the first two
-components (the runner fits two components), `explained_variance_ratio` and
-the cumulative value. This is the fraction of the **total linear variance of
-the latent means** captured. It is not a class-separation measure: a latent
-space can have a large first component unrelated to the classes and a small
-one that separates them. Because only two components are fitted, the ratio
-does not show how the variance is spread over the remaining dimensions. The
-figure `pca_explained_variance_<L>d` shows the bars and the annotation "Top-2
-components: X% of linear variance".
+O PCA é linear. `tables/pca_explained_variance.csv` guarda, para as duas primeiras
+componentes, `explained_variance_ratio` e o valor acumulado, além de
+`latent_dimension`, dataset, seed e tipo de experimento. É a fração da variância
+linear **total** das médias latentes capturada; não é uma medida de separação de
+classes. Como só duas componentes são ajustadas, o valor não mostra como a variância
+se distribui nas demais. **Somente o PCA possui variância explicada.**
 
-### UMAP and t-SNE limitations
+### Limitações de UMAP e t-SNE
 
-* Neither gives explained variance; never report one.
-* Both preserve **local** neighbourhoods; global layout, inter-cluster
-  distances, cluster sizes and densities are not reliable.
-* Results depend on hyperparameters (`n_neighbors`, `min_dist`; `perplexity`,
-  `init`, iterations) and random seed; the same data can look more or less
-  clustered with other settings.
-* They can show apparent clusters that are not separable in the original
-  latent space, and can fragment a continuous distribution.
-* t-SNE cost and memory grow quickly with N; UMAP needs `umap-learn`.
-* Remedy: report parameters and n, compare against PCA, and vary parameters
-  as a sensitivity check.
+- Nenhum dos dois fornece variância explicada; nunca a reporte para eles.
+- Preservam vizinhanças **locais**; layout global, distâncias entre grupos, tamanhos e
+  densidades não são confiáveis.
+- Dependem de hiperparâmetros (`n_neighbors`, `min_dist`; `perplexity`, `init`,
+  iterações) e de seed.
+- Podem mostrar agrupamentos aparentes que não são separáveis no espaço original, e
+  fragmentar distribuições contínuas.
+- Custo e memória do t-SNE crescem rapidamente com N; o UMAP exige `umap-learn`.
+- Mitigação: reportar parâmetros e n, comparar com o PCA e variar parâmetros.
 
-The figure titles include method, dataset, latent dimension, split and n, and
-UMAP/t-SNE figures carry an on-figure note about the limitations.
-
-## 4. Clustering metrics (subsidiary)
+## 4. Métricas de agrupamento (subsidiárias)
 
 [`compute_clustering_metrics`](../src/vae_project/evaluation/clustering_metrics.py)
-uses the **ground-truth labels as cluster assignments** on `latent_mean`
-(full latent space, not the 2D projection):
+usa os **rótulos verdadeiros como atribuição de clusters**:
 
-| Column in `projection_metrics.csv` | Meaning |
+| Coluna em `projection_metrics.csv` | Significado |
 |---|---|
-| `space_name` | `val_latent_original` in the standard pipeline. |
-| `silhouette_score` | [-1, 1]; higher = tighter, better separated labelled groups. Computed on at most `silhouette_sample_size` random points. |
-| `calinski_harabasz_index` | Higher = larger between-group vs within-group dispersion. Uses all samples. |
-| `davies_bouldin_index` | Lower = better separated groups. Uses all samples. |
-| `trustworthiness` | Empty in the standard pipeline (needs a reference high-dimensional space). |
-| `kmeans_ari`, `kmeans_nmi` | Empty in the standard pipeline (K-Means is off by default). |
-| `n_samples`, `n_samples_total`, `was_subsampled` | Sample accounting for the silhouette. |
+| `space_type` | `latent_original`, `pca_2d`, `umap_2d` ou `tsne_2d`. |
+| `scope` | `full_split` ou `sample`: sobre todo o split ou sobre a amostra. |
+| `silhouette_score` | De −1 a 1; maior = grupos rotulados mais compactos e separados. |
+| `calinski_harabasz_index` | Maior = maior dispersão entre grupos do que dentro deles. |
+| `davies_bouldin_index` | Menor = grupos mais bem separados. |
+| `trustworthiness` | Preservação de vizinhanças na projeção; vazia onde não se aplica (espaço original). |
+| `unavailable_metrics` | Métricas não aplicáveis ou que falharam. |
 
-These numbers describe agreement between labels and geometry. They do not
-establish that natural clusters exist, are sensitive to the latent
-dimension, and are not comparable across different spaces without care. If
-ARI/NMI are enabled, treat them as exploratory (K-Means makes spherical-cluster
-assumptions and its result depends on initialisation). They never replace
-the visual analysis.
+Valores não aplicáveis ficam **vazios**, nunca zero. As métricas descrevem a
+concordância entre rótulos e geometria; não provam a existência de clusters naturais,
+são sensíveis à dimensão latente e **nunca substituem a análise visual**.
 
-## 5. Linear classifier (probe)
+## 5. Classificador linear (sonda)
 
-`train_linear_classifier` fits a multinomial logistic regression on
-standardised **training** latent means (scaler fitted on train only), and
-reports train and validation accuracy, plus test accuracy only if test arrays
-are supplied; it can also return a confusion matrix and a classification
-report. It measures **linear separability** of the labels, which is neither
-necessary nor sufficient for cluster structure: classes can be linearly
-separable without forming compact clusters, and clustered classes can be
-non-linearly arranged. It is invoked by `VAEEvaluator` when
-`metrics.compute_linear_classifier` is true.
+`train_linear_classifier` ajusta uma regressão logística multinomial sobre as médias
+latentes **padronizadas** do treino (o scaler é ajustado só no treino) e informa
+acurácia de treino e validação (e de teste apenas se arrays de teste forem
+fornecidos). Mede **separabilidade linear**, que não é necessária nem suficiente
+para haver agrupamentos. É chamado pelo `VAEEvaluator` quando
+`metrics.compute_linear_classifier` é verdadeiro.
 
-## 6. Reconstruction quality
+## 6. Qualidade de reconstrução
 
-* **Training/validation losses**: per-epoch reconstruction and KL terms in
-  `training_history.csv`. They depend on loss type, `reduction` and beta.
-* **Visual**: `reconstruction_comparison` (8 examples) compares original and
-  reconstruction from the posterior mean (eval mode), and `generated_samples`
-  shows decodings of prior samples.
-* **Numeric**: `compute_reconstruction_metrics` returns `mean_mse` and
-  `mean_bce`, each averaged over batches of per-element means (so on the
-  per-pixel scale, not the summed loss used in training). The value is
-  computed with the posterior mean as decoder input. It is reported in the
-  final evaluation JSON.
+- **Losses de treino/validação**: termos de reconstrução e KL por época em
+  `training_history.csv`; dependem do tipo de loss, de `reduction` e de `beta`.
+- **Visual**: `reconstruction_comparison` (8 exemplos, a partir da média posterior) e
+  `generated_samples` (decodificação de amostras do prior).
+- **Numérica**: `compute_reconstruction_metrics` devolve `mean_mse` e `mean_bce` por
+  pixel, na escala por elemento (não a soma usada no treino).
 
-Good reconstruction does not imply an informative latent space for classes,
-and vice versa.
+Boa reconstrução não implica um espaço latente informativo para as classes, e vice-versa.
 
-## 7. Validation vs test evaluation
+## 7. Checkpoint e avaliação
 
-Validation evaluation is safe during model selection. The test evaluation
-(`run_final_evaluation`) is reserved for the end; its output is labelled
-`evaluation_type: final_test`. The final evaluation function reads the model
-configuration from the YAML you pass; use the configuration that produced the
-checkpoint, otherwise loading fails or silently compares the wrong
-architecture.
+A seleção do melhor checkpoint usa **apenas** a loss total de validação. Para as
+evidências, o checkpoint é carregado no modo **inferência**
+(`load_for_inference`/`load_best`), que exige pesos e metadados e valida dimensão
+latente e topologia; checkpoints antigos (só pesos) continuam aceitos. A retomada de
+treino é outro cenário e está descrita em [`reproducibility.md`](reproducibility.md).
 
-## 8. Evaluation checklist
+## 8. Validação x teste
 
-* Which split was each number computed on?
-* Subsampled or not (`was_subsampled`, `n`)?
-* Which latent representation (mean vs sample)?
-* Which projection parameters?
-* Is the metric label-based?
-* Was any decision made using test data?
+A avaliação em validação é segura durante a seleção de modelo. A avaliação de teste
+(`run_final_evaluation`) é reservada ao final e marcada `evaluation_type: final_test`.
+Use a mesma configuração que gerou o checkpoint; caso contrário, o carregamento falha
+ou compara a arquitetura errada.
+
+## 9. Dados sintéticos
+
+Testes e smoke test usam dados sintéticos para verificar o **funcionamento** do
+código (arquivos criados, formatos, registro no manifesto). Os testes de figuras
+conferem existência, tamanho, extensão, dimensão associada, dados de entrada e
+registro no manifesto; eles **não** avaliam a qualidade científica. Os artefatos
+sintéticos são identificados (`smoke_test`/`synthetic`, `data_origin = synthetic`) e
+não entram em relatórios científicos.
+
+## 10. Checklist
+
+- Em qual split cada número foi calculado?
+- Houve subamostragem (`scope`, `n`)?
+- Qual representação latente (média ou amostra)?
+- Quais parâmetros de projeção?
+- A métrica é baseada em rótulos?
+- Alguma decisão usou dados de teste?
+- Os dados são reais (MNIST/Fashion-MNIST) ou sintéticos?

@@ -347,8 +347,20 @@ class LoggingConfig:
 
 @dataclass
 class LatentDimensionComparisonConfig:
-    """Configuration for comparing multiple latent dimensions."""
+    """Configuration for comparing multiple latent dimensions.
 
+    Each entry of ``dimensions`` is an independent training run. The list
+    lives exclusively here; ``model.latent_dimension`` always holds a single
+    integer for a single model.
+
+    Attributes:
+        enabled: Whether the comparison experiment may be executed.
+        dimensions: Latent dimensions to train, one independent VAE each.
+        fixed_topology: Name of the previously selected topology that every
+            model in the comparison uses (no topology search is performed).
+    """
+
+    enabled: bool = True
     dimensions: list[int] = field(default_factory=lambda: [2, 8, 16, 32])
     fixed_topology: str = "medium"
 
@@ -381,6 +393,11 @@ class ExperimentConfig:
         default_factory=LatentDimensionComparisonConfig
     )
     run_name: str | None = None
+
+    @property
+    def experiment_type(self) -> str:
+        """Return 'supervised' or 'unsupervised' based on the supervised head."""
+        return "supervised" if self.supervised_component.enabled else "unsupervised"
 
     def __post_init__(self) -> None:
         """Normalize all nested config objects from dicts."""

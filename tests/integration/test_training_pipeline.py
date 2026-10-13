@@ -20,11 +20,12 @@ from vae_project.config.models import (
     ModelConfig,
     OptimizerConfig,
     RuntimeConfig,
+    SchedulerConfig,
     TopologyConfig,
     TrainingConfig,
 )
 from vae_project.models.vae import VariationalAutoencoder
-from vae_project.training.checkpointing import ModelCheckpointer
+from vae_project.training.checkpointing import CheckpointError, ModelCheckpointer
 from vae_project.training.history import TrainingHistory
 from vae_project.training.trainer import VAETrainer
 
@@ -159,3 +160,44 @@ class TestTrainingPipeline:
 
         assert (tmp_path / "tables" / "training_history.csv").exists()
         assert (tmp_path / "tables" / "training_history.json").exists()
+
+
+class TestTrainerResume:
+    """Training resume through the trainer using synthetic data."""
+
+    def _trainer(self, tmp_path: Path, config: ExperimentConfig) -> VAETrainer:
+        return VAETrainer(
+            model=VariationalAutoencoder(config.model),
+            config=config,
+            device=torch.device("cpu"),
+            checkpointer=ModelCheckpointer(tmp_path / "ckpt"),
+            history=TrainingHistory(tmp_path / "tables"),
+        )
+
+    def test_resume_continues_after_the_checkpointed_epoch(self, tmp_path: Path) -> None:
+        config = _make_minimal_config()
+        config.scheduler = SchedulerConfig(enabled=True, patience=1)
+        first = self._trainer(tmp_path, config)
+        train_loader, val_loader = _make_synthetic_loaders()
+        first.fit(train_loader, val_loader, "synthetic")
+        stored = ModelCheckpointer(tmp_path / "ckpt").get_metadata()
+        assert stored is not None
+
+        config.training.max_epochs = stored.epoch + 3
+        second = self._trainer(tmp_path, config)
+        state = second.resume_from_checkpoint()
+        assert state.next_epoch == stored.epoch + 1
+        second.fit(train_loader, val_loader, "synthetic", start_epoch=state.next_epoch)
+
+        assert second.history.get_records()[0].epoch == stored.epoch + 1
+
+    def test_resume_from_legacy_checkpoint_raises_clear_error(self, tmp_path: Path) -> None:
+        config = _make_minimal_config()
+        trainer = self._trainer(tmp_path, config)
+        train_loader, val_loader = _make_synthetic_loaders()
+        trainer.fit(train_loader, val_loader, "synthetic")
+        torch.save(trainer.model.state_dict(), trainer.checkpointer.best_checkpoint_path)
+
+        fresh = self._trainer(tmp_path, config)
+        with pytest.raises(CheckpointError, match="cannot be used to resume"):
+            fresh.resume_from_checkpoint()

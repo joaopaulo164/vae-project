@@ -1,37 +1,61 @@
-# Guia de EvidÍncias para Artigo CientÌfico
+# Guia de Evid√™ncias para Artigo Cient√≠fico
 
-Este documento mapeia perguntas de pesquisa a artefatos gerados pelo projeto.
-**N„o preencha as colunas de resultados antes de executar os experimentos.**
+Este documento mapeia perguntas de pesquisa aos artefatos gerados pelo projeto.
+**N√£o preencha resultados antes de executar os experimentos.** Conven√ß√£o de idioma:
+esta documenta√ß√£o √© em portugu√™s; os resumos gerados (`run_summary.md`,
+`latent_dimension_comparison_summary.md`) s√£o em ingl√™s.
 
-## Mapeamento: Pergunta ? EvidÍncia ? Arquivo
+Todos os caminhos de compara√ß√£o s√£o relativos a
+`artifacts/<dataset>/unsupervised/latent_dimension_comparison/run_<timestamp>_<id>/`
+(abreviado como `RUN/`). Cada execu√ß√£o tem seu pr√≥prio `RUN/`; cite no artigo o nome
+exato do diret√≥rio usado.
 
-| Pergunta de Pesquisa | EvidÍncia Necess·ria | Arquivo Gerado | Figura/Tabela | Cuidados |
-|----------------------|---------------------|----------------|---------------|---------|
-| H· formaÁ„o visual de clusters? | ProjeÁıes coloridas por classe | figures/latent_space/ | latent_space_pca/umap/tsne_Nd.png | Verificar em m˙ltiplas projeÁıes |
-| Quais classes se sobrepıem? | An·lise visual das projeÁıes | figures/latent_space/ | Todas as projeÁıes | Artefato de projeÁ„o vs. sobreposiÁ„o real |
-| Quanto de vari‚ncia o PCA explica? | pca_explained_variance.csv | tables/ | pca_explained_variance_Nd.png | V·lido apenas para PCA |
-| Qual topologia tem menor val loss? | topology_selection_results.csv | topology_selection/ | Tabela | Um seed; variabilidade n„o estimada |
-| Dimens„o latente afeta separaÁ„o? | latent_dimension_comparison.csv | dimension_comparison/ | Tabela | Capacidade cresce com dimens„o |
-| MNIST vs Fashion-MNIST diferem? | Comparar figuras dos dois datasets | artifacts/mnist/ vs artifacts/fashion_mnist/ | ProjeÁıes side-by-side | Rodar mesma config nos dois |
-| Componente supervisionado ajuda? | Comparar unsupervised vs supervised | artifacts/unsupervised/ vs supervised/ | Figuras lado a lado | Artefatos em diretÛrios separados |
+## Regra de elegibilidade
 
-## EvidÍncias para SeÁ„o de Metodologia
+Somente execu√ß√µes com `data_origin = real` (MNIST e Fashion-MNIST) podem sustentar
+afirma√ß√µes cient√≠ficas. Artefatos de testes e do smoke test (`data_origin =
+synthetic`, diret√≥rio com `smoke_test`/`synthetic`) **n√£o** devem ser citados.
 
-- config_resolved.yaml: par‚metros exatos do experimento
-- environment.json: versıes de bibliotecas e hardware
-- tables/class_distribution.csv: distribuiÁ„o de classes por split
+## Mapeamento: pergunta ‚Üí evid√™ncia ‚Üí arquivo
 
-## EvidÍncias para SeÁ„o de Resultados
+| Pergunta de pesquisa | Evid√™ncia | Arquivo | Cuidados |
+|---|---|---|---|
+| H√° forma√ß√£o visual de clusters? | Proje√ß√µes coloridas por classe | `RUN/latent_dim_N/figures/latent_space/` (`latent_space_direct_2d`, `latent_space_pca_Nd`, `latent_space_umap_Nd`, `latent_space_tsne_Nd`) | Verificar em mais de uma proje√ß√£o; para N=2 usar o gr√°fico direto |
+| Quais classes se sobrep√µem? | An√°lise visual das proje√ß√µes | mesmas figuras | Distinguir artefato de proje√ß√£o de sobreposi√ß√£o real |
+| Quanto da vari√¢ncia o PCA explica? | `tables/pca_explained_variance.csv` e `pca_explained_variance_Nd` | `RUN/latent_dim_N/` (N > 2) | V√°lido **apenas** para PCA; n√£o existe para N=2, UMAP ou t-SNE |
+| Qual dimens√£o tem menor loss de valida√ß√£o? | `latent_dimension_comparison.csv` | `RUN/` | Afirma√ß√£o num√©rica sobre a loss; n√£o diz qual dimens√£o agrupa melhor. Um seed |
+| A dimens√£o latente afeta a separa√ß√£o? | Figuras de todas as dimens√µes lado a lado + `tables/projection_metrics.csv` | `RUN/latent_dim_*/` | M√©tricas s√£o subsidi√°rias; capacidade cresce com a dimens√£o |
+| MNIST e Fashion-MNIST diferem? | Comparar os `RUN/` dos dois datasets | `artifacts/mnist/...` e `artifacts/fashion_mnist/...` | Mesma configura√ß√£o nos dois |
+| O componente supervisionado ajuda? | Comparar execu√ß√µes n√£o supervisionada e supervisionada | diret√≥rios `unsupervised/` e `supervised/` | Experimento independente, executado manualmente; nunca misturar |
+| Qual topologia tem menor val loss? | `topology_selection_results.csv` | `topology_selection/` | Um seed; variabilidade n√£o estimada |
 
-- figures/training/: curvas de treinamento
-- figures/reconstructions/: qualidade de reconstruÁ„o
-- figures/latent_space/: an·lise do espaÁo latente
-- tables/projection_metrics.csv: mÈtricas subsidi·rias
+## Evid√™ncias para a se√ß√£o de Metodologia
 
-## LimitaÁıes a Declarar no Artigo
+- `latent_dim_N/config_resolved.yaml`: par√¢metros exatos de cada dimens√£o;
+- `latent_dim_N/checkpoints/checkpoint_metadata.json` e `best_model.pt`
+  (`resolved_config`, seed, topologia, dimens√£o latente);
+- `latent_dim_N/artifact_manifest.json`: arquivos, tamanhos e SHA-256;
+- `latent_dim_N/latent_data/projection_sample_indices.csv`: amostra id√™ntica entre
+  dimens√µes;
+- `environment.json` (execu√ß√µes `train`/`run-pipeline`): vers√µes e hardware.
 
-1. Um seed por configuraÁ„o ó variabilidade n„o estimada
-2. Arquitetura MLP totalmente conectada ó sem estrutura espacial
-3. MÈtricas de clustering usam rÛtulos como clusters, n„o clusters descobertos
-4. t-SNE e UMAP: n„o reportar vari‚ncia explicada
-5. Resultados podem diferir entre versıes de PyTorch/CUDA/hardware
+## Evid√™ncias para a se√ß√£o de Resultados
+
+- `latent_dim_N/tables/training_history.csv`: curvas de treinamento;
+- `latent_dim_N/figures/latent_space/`: espa√ßo latente (PNG e SVG);
+- `latent_dim_N/tables/projection_metrics.csv`: m√©tricas subsidi√°rias;
+- `latent_dim_N/run_summary.md` e `latent_dimension_comparison_summary.md`:
+  resumos (em ingl√™s);
+- `latent_dimension_comparison.csv`: tabela consolidada.
+
+## Limita√ß√µes a declarar
+
+1. Um seed por configura√ß√£o: a variabilidade entre seeds n√£o √© estimada.
+2. Arquitetura MLP totalmente conectada, sem estrutura espacial.
+3. As m√©tricas usam os r√≥tulos como clusters, n√£o clusters descobertos.
+4. UMAP e t-SNE distorcem dist√¢ncias globais; n√£o reportar vari√¢ncia explicada
+   para eles.
+5. A compara√ß√£o principal √© n√£o supervisionada; o componente supervisionado √© um
+   experimento separado.
+6. Os resultados podem variar entre vers√µes de PyTorch/CUDA e hardware.
+7. A sele√ß√£o do modelo usa apenas o split de valida√ß√£o; o teste n√£o √© usado.

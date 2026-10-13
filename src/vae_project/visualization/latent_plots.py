@@ -81,6 +81,8 @@ def _build_figure_title(
     n_samples: int,
     is_quick_mode: bool,
     extra_info: str = "",
+    n_total: int | None = None,
+    experiment_type: str | None = None,
 ) -> str:
     """Build an informative figure title.
 
@@ -92,15 +94,23 @@ def _build_figure_title(
         n_samples: Number of points displayed.
         is_quick_mode: Whether to add quick-mode warning.
         extra_info: Optional additional information string.
+        n_total: Number of samples in the full split. When larger than
+            ``n_samples`` the title states that a sample is displayed.
 
     Returns:
         Title string.
     """
+    if n_total is not None and n_total > n_samples:
+        count_text = f"n={n_samples:,} (sample of {n_total:,})"
+    else:
+        count_text = f"n={n_samples:,}"
     title = (
         f"{method} — {dataset_name} | "
         f"latent_dim={latent_dimension} | "
-        f"{split_name} | n={n_samples:,}"
+        f"{split_name} | {count_text}"
     )
+    if experiment_type:
+        title += f" | {experiment_type}"
     if extra_info:
         title += f" | {extra_info}"
     if is_quick_mode:
@@ -117,8 +127,12 @@ def plot_latent_space_direct_2d(
     dataset_name: str,
     split_name: str = "val",
     is_quick_mode: bool = False,
+    experiment_type: str | None = None,
 ) -> list[Path]:
     """Plot the 2D latent space directly (only when latent_dimension == 2).
+
+    The axes are ``latent_mean_0`` (X) and ``latent_mean_1`` (Y); no projection
+    algorithm is applied.
 
     Args:
         latent_means: Latent mean vectors, shape (N, 2).
@@ -129,6 +143,7 @@ def plot_latent_space_direct_2d(
         dataset_name: Dataset identifier.
         split_name: Split name for title.
         is_quick_mode: Whether to add quick-mode warning.
+        experiment_type: Optional experiment type label for the title.
 
     Returns:
         List of saved figure paths.
@@ -160,6 +175,8 @@ def plot_latent_space_direct_2d(
         split_name=split_name,
         n_samples=n_display,
         is_quick_mode=is_quick_mode,
+        n_total=len(labels),
+        experiment_type=experiment_type,
     )
     axis.set_title(title, fontsize=10)
 
@@ -186,6 +203,8 @@ def plot_pca_projection(
     dataset_name: str,
     split_name: str = "val",
     is_quick_mode: bool = False,
+    n_total: int | None = None,
+    experiment_type: str | None = None,
 ) -> list[Path]:
     """Plot PCA 2D projection with explained variance annotation.
 
@@ -198,6 +217,8 @@ def plot_pca_projection(
         dataset_name: Dataset identifier.
         split_name: Split name.
         is_quick_mode: Whether to add quick-mode warning.
+        n_total: Size of the full split when ``labels`` is a sample of it.
+        experiment_type: Optional experiment type label for the title.
 
     Returns:
         List of saved figure paths.
@@ -230,6 +251,8 @@ def plot_pca_projection(
         n_samples=n_display,
         is_quick_mode=is_quick_mode,
         extra_info=extra_info,
+        n_total=n_total,
+        experiment_type=experiment_type,
     )
     axis.set_title(title, fontsize=9)
 
@@ -309,6 +332,8 @@ def plot_umap_projection(
     dataset_name: str,
     split_name: str = "val",
     is_quick_mode: bool = False,
+    n_total: int | None = None,
+    experiment_type: str | None = None,
 ) -> list[Path]:
     """Plot UMAP 2D projection.
 
@@ -321,6 +346,8 @@ def plot_umap_projection(
         dataset_name: Dataset identifier.
         split_name: Split name.
         is_quick_mode: Whether to add quick-mode warning.
+        n_total: Size of the full split when ``labels`` is a sample of it.
+        experiment_type: Optional experiment type label for the title.
 
     Returns:
         List of saved figure paths.
@@ -338,6 +365,8 @@ def plot_umap_projection(
         n_samples=n_display,
         is_quick_mode=is_quick_mode,
         extra_info=extra_info,
+        n_total=n_total,
+        experiment_type=experiment_type,
     )
     axis.set_title(title, fontsize=9)
 
@@ -376,6 +405,8 @@ def plot_tsne_projection(
     dataset_name: str,
     split_name: str = "val",
     is_quick_mode: bool = False,
+    n_total: int | None = None,
+    experiment_type: str | None = None,
 ) -> list[Path]:
     """Plot t-SNE 2D projection.
 
@@ -388,6 +419,8 @@ def plot_tsne_projection(
         dataset_name: Dataset identifier.
         split_name: Split name.
         is_quick_mode: Whether to add quick-mode warning.
+        n_total: Size of the full split when ``labels`` is a sample of it.
+        experiment_type: Optional experiment type label for the title.
 
     Returns:
         List of saved figure paths.
@@ -405,6 +438,8 @@ def plot_tsne_projection(
         n_samples=n_display,
         is_quick_mode=is_quick_mode,
         extra_info=extra_info,
+        n_total=n_total,
+        experiment_type=experiment_type,
     )
     axis.set_title(title, fontsize=9)
 

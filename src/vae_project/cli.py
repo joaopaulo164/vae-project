@@ -101,7 +101,24 @@ def _build_parser() -> argparse.ArgumentParser:
         "--output-dir",
         type=Path,
         default=None,
-        help="Output directory",
+        help=(
+            "Base directory of the comparison runs (default: "
+            "artifacts/<dataset>/<experiment_type>/latent_dimension_comparison). "
+            "A new run_YYYYMMDD_HHMMSS_<id> directory is created inside it."
+        ),
+    )
+    compare_parser.add_argument(
+        "--run-name",
+        default=None,
+        help="Optional identifier appended to the run directory name (default: random hex)",
+    )
+    compare_parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help=(
+            "Allow --output-dir to be an existing run directory and replace files with "
+            "the same name. Without this flag an existing run is rejected."
+        ),
     )
 
     # run-pipeline
@@ -250,6 +267,11 @@ def _cmd_compare_latent_dims(args: argparse.Namespace) -> int:
     from vae_project.experiments.latent_dimension_comparison import (
         run_latent_dimension_comparison,
     )
+    from vae_project.utils.paths import (
+        ArtifactError,
+        build_latent_dimension_comparison_dir,
+        resolve_comparison_run_dir,
+    )
 
     try:
         config = load_config(args.config)
@@ -257,18 +279,44 @@ def _cmd_compare_latent_dims(args: argparse.Namespace) -> int:
         print(f"âœ— Configuration error: {exc}", file=sys.stderr)
         return 1
 
-    output_dir = args.output_dir or (
-        config.paths.artifacts_dir / config.dataset.name.value / "latent_dimension_comparison"
-    )
+    try:
+        output_dir = resolve_comparison_run_dir(
+            output_dir=args.output_dir,
+            default_base_dir=build_latent_dimension_comparison_dir(
+                config.paths.artifacts_dir, config.dataset.name.value, config.experiment_type
+            ),
+            overwrite=args.overwrite,
+            run_name=args.run_name,
+        )
+    except ArtifactError as exc:
+        print(f"ERROR (output conflict): {exc}", file=sys.stderr)
+        return 1
+    print(f"Run directory: {output_dir}")
 
     dims = config.latent_dimension_comparison.dimensions
     print(f"Comparing latent dimensions {dims} for {config.dataset.name.value}...")
 
     try:
-        results_df = run_latent_dimension_comparison(config, output_dir)
+        results_df = run_latent_dimension_comparison(config, output_dir, overwrite=args.overwrite)
         print("Latent dimension comparison results:")
-        print(results_df.to_string(index=False))
-        return 0
+        summary_columns = [
+            "latent_dimension",
+            "execution_status",
+            "best_epoch",
+            "validation_total_loss",
+            "training_time",
+        ]
+        print(results_df[summary_columns].to_string(index=False))
+        print(f"Artifacts: {output_dir}")
+        statuses = set(results_df["execution_status"])
+        if statuses == {"completed"}:
+            return 0
+        print(
+            "WARNING: at least one dimension did not complete. "
+            "See latent_dimension_comparison_summary.md for details.",
+            file=sys.stderr,
+        )
+        return 1
     except Exception as exc:
         print(f"âœ— Comparison failed: {exc}", file=sys.stderr)
         logger.exception("Dimension comparison failed")

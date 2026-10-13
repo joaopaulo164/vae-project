@@ -6,9 +6,16 @@ All paths are relative to the project root.
 
 from __future__ import annotations
 
+import logging
 import re
+import secrets
 from datetime import datetime
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+SMOKE_TEST_MARKERS = ("smoke_test", "synthetic")
+_RUN_DIR_NAME_PATTERN = re.compile(r"^run_\d{8}_\d{6}_")
 
 
 class ArtifactError(Exception):
@@ -84,6 +91,164 @@ def build_run_dir(
     )
 
     return run_dir
+
+
+def build_latent_dimension_comparison_dir(
+    artifacts_dir: Path,
+    dataset_name: str,
+    experiment_type: str,
+) -> Path:
+    """Build the directory for a latent dimension comparison.
+
+    Follows the repository convention ``<artifacts>/<dataset>/<experiment_type>/...``
+    so datasets and supervised/unsupervised results are never mixed.
+
+    Args:
+        artifacts_dir: Base artifacts directory path.
+        dataset_name: Dataset name (e.g. 'mnist').
+        experiment_type: 'unsupervised' or 'supervised'.
+
+    Returns:
+        Path of the comparison directory (not yet created).
+    """
+    return (
+        artifacts_dir
+        / sanitize_path_component(dataset_name)
+        / sanitize_path_component(experiment_type)
+        / "latent_dimension_comparison"
+    )
+
+
+def build_comparison_run_dir(base_dir: Path, run_name: str | None = None) -> Path:
+    """Build a new, exclusive directory for one latent dimension comparison run.
+
+    The name is ``run_YYYYMMDD_HHMMSS_<identifier>``. The identifier is the
+    sanitized ``run_name`` or, by default, a short random hex string, so two
+    runs started within the same second never share a directory. The name is
+    Windows-safe (no colons or other reserved characters).
+
+    Args:
+        base_dir: Directory that groups comparison runs.
+        run_name: Optional human-readable identifier.
+
+    Returns:
+        Path of the run directory (not yet created).
+
+    Raises:
+        ArtifactError: If an explicit ``run_name`` produces a directory that
+            already exists.
+    """
+    timestamp = build_run_timestamp()
+    safe_name = sanitize_path_component(run_name) if run_name else ""
+    if safe_name:
+        candidate = Path(base_dir) / f"run_{timestamp}_{safe_name}"
+        if candidate.exists():
+            raise ArtifactError(
+                f"Run directory already exists: {candidate}. "
+                "Choose another --run-name or wait one second."
+            )
+        return candidate
+    while True:
+        candidate = Path(base_dir) / f"run_{timestamp}_{secrets.token_hex(3)}"
+        if not candidate.exists():
+            return candidate
+
+
+def is_comparison_run_dir(path: Path) -> bool:
+    """Tell whether an existing directory is (or holds the output of) a comparison run.
+
+    A directory counts as a run directory when it is named
+    ``run_YYYYMMDD_HHMMSS_<identifier>`` or already contains comparison outputs.
+
+    Args:
+        path: Directory to inspect.
+
+    Returns:
+        True when ``path`` exists and looks like a comparison run directory.
+    """
+    path = Path(path)
+    if not path.is_dir():
+        return False
+    if _RUN_DIR_NAME_PATTERN.match(path.name):
+        return True
+    return (path / "latent_dimension_comparison.csv").exists() or any(path.glob("latent_dim_*"))
+
+
+def ensure_run_dir_is_free(run_dir: Path, overwrite: bool = False) -> None:
+    """Refuse to write into a non-empty run directory unless overwrite is explicit.
+
+    Args:
+        run_dir: Directory about to receive run artifacts.
+        overwrite: Whether the caller explicitly accepted overwriting.
+
+    Raises:
+        ArtifactError: If ``run_dir`` is a file, or holds files and ``overwrite``
+            is False.
+    """
+    run_dir = Path(run_dir)
+    if not run_dir.exists():
+        return
+    if not run_dir.is_dir():
+        raise ArtifactError(f"Run path exists and is not a directory: {run_dir}")
+    if not any(run_dir.iterdir()):
+        return
+    if not overwrite:
+        raise ArtifactError(
+            f"Conflict: run directory already contains artifacts: {run_dir}. "
+            "Nothing was written. Use a new run directory (omit --output-dir or pass its "
+            "parent as --output-dir), or pass --overwrite to replace files with the same name."
+        )
+    logger.warning("Overwrite enabled: files with the same name in %s will be replaced.", run_dir)
+
+
+def resolve_comparison_run_dir(
+    output_dir: Path | None,
+    default_base_dir: Path,
+    overwrite: bool = False,
+    run_name: str | None = None,
+) -> Path:
+    """Decide the run directory of a comparison from the CLI arguments.
+
+    ``output_dir`` is treated as a *base* directory: a new exclusive
+    ``run_<timestamp>_<identifier>`` directory is created inside it. When it
+    already is a run directory, it is rejected unless ``overwrite`` is set, in
+    which case it is reused as the run directory itself.
+
+    Args:
+        output_dir: User-supplied ``--output-dir`` or None.
+        default_base_dir: Base used when ``output_dir`` is None.
+        overwrite: Explicit permission to reuse an existing run directory.
+        run_name: Optional identifier for the new run directory.
+
+    Returns:
+        The run directory to pass to the comparison.
+
+    Raises:
+        ArtifactError: If ``output_dir`` is an existing run directory and
+            ``overwrite`` is False, or the new run directory name is taken.
+    """
+    if output_dir is not None and is_comparison_run_dir(output_dir):
+        ensure_run_dir_is_free(output_dir, overwrite=overwrite)
+        return Path(output_dir)
+    base_dir = Path(output_dir) if output_dir is not None else Path(default_base_dir)
+    return build_comparison_run_dir(base_dir, run_name)
+
+
+def ensure_smoke_test_dir(path: Path) -> None:
+    """Require 'smoke_test' or 'synthetic' in the path of synthetic-data runs.
+
+    Args:
+        path: Output directory of a run that uses synthetic data.
+
+    Raises:
+        ArtifactError: If no path component contains a smoke-test marker.
+    """
+    parts = [part.lower() for part in Path(path).parts]
+    if not any(marker in part for part in parts for marker in SMOKE_TEST_MARKERS):
+        raise ArtifactError(
+            f"Synthetic-data runs must write into a directory whose path contains "
+            f"'smoke_test' or 'synthetic', got: {path}"
+        )
 
 
 def ensure_dir(path: Path) -> Path:

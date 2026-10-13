@@ -310,8 +310,11 @@ Consulte [`docs/experimentation.md`](docs/experimentation.md) para o protocolo c
 
 ## Comparação de Dimensões Latentes
 
-Mantém a topologia selecionada constante e varia a dimensão latente
-(2, 8, 16, 32). Todos os demais parâmetros são mantidos idênticos.
+Mantém a topologia selecionada (`medium`) constante e varia a dimensão latente
+(2, 8, 16, 32). Cada dimensão é um **treinamento independente**: um VAE novo,
+com otimizador, scheduler e early stopping recriados e o seed reaplicado.
+Todos os demais parâmetros (divisão treino/validação, seed, hiperparâmetros,
+topologia, parâmetros das projeções e amostragem) são idênticos.
 
 ```powershell
 python -m vae_project.cli compare-latent-dims --config configs/latent_dimensions_mnist.yaml
@@ -319,7 +322,38 @@ python -m vae_project.cli compare-latent-dims --config configs/latent_dimensions
 python -m vae_project.cli compare-latent-dims --config configs/latent_dimensions_fashion_mnist.yaml
 ```
 
-**Resultado:** `latent_dimension_comparison.csv` com métricas por dimensão.
+A lista de dimensões fica **somente** em `latent_dimension_comparison.dimensions`.
+O campo `model.latent_dimension` continua sendo um único inteiro.
+
+Para cada dimensão, o comando executa o fluxo completo: treinamento, validação,
+seleção do melhor checkpoint (menor `val_total_loss`), recarga desse checkpoint,
+extração do `latent_mean`, figuras, métricas subsidiárias, tabelas, manifesto e
+resumo da execução. Ao final, consolida todas as dimensões.
+
+| Dimensão | Visualização gerada |
+|----------|---------------------|
+| 2 | Gráfico direto `latent_mean_0` × `latent_mean_1` (sem PCA/UMAP/t-SNE) |
+| 8, 16, 32 | PCA, UMAP, t-SNE e variância explicada do PCA (PNG + SVG) |
+
+Pontos importantes:
+
+- O experimento é **não supervisionado** (`supervised_component.enabled: false`).
+  Os rótulos são usados apenas depois do treino, para colorir as figuras e
+  calcular métricas subsidiárias. O experimento supervisionado é executado
+  manualmente, com uma configuração independente, depois de escolher a dimensão.
+- Há um único seed (`global_seed: 42`); não há lista de seeds.
+- Somente o PCA possui variância explicada. UMAP e t-SNE não a possuem.
+- A análise visual é a evidência principal; as métricas são subsidiárias.
+- Em CPU, o tempo de execução pode ser longo (quatro treinamentos completos mais
+  UMAP e t-SNE para cada dimensão maior que 2). A primeira execução do UMAP
+  também compila código com numba, o que adiciona cerca de 30 segundos.
+- Uma falha em uma dimensão não interrompe as demais. O status de cada dimensão
+  (`completed`, `partial` ou `failed`) aparece na tabela consolidada.
+
+**Resultado:** `latent_dimension_comparison.csv` e
+`latent_dimension_comparison_summary.md`, mais um diretório `latent_dim_N/` por
+dimensão. Veja [Localização dos Artefatos](#localização-dos-artefatos) e
+[`docs/experimentation.md`](docs/experimentation.md).
 
 ---
 
@@ -417,6 +451,51 @@ artifacts/
 ```
 
 Execuções anteriores **nunca são sobrescritas** (timestamps únicos).
+
+A comparação de dimensões latentes usa um diretório próprio por dataset e tipo
+de experimento. **Cada execução cria um diretório exclusivo**
+`run_YYYYMMDD_HHMMSS_<id>/`, com um subdiretório por dimensão:
+
+```
+artifacts/mnist/unsupervised/latent_dimension_comparison/
+└── run_20260101_120000_a1b2c3/
+    ├── latent_dimension_comparison.csv
+    ├── latent_dimension_comparison_summary.md
+    ├── latent_dim_2/
+    ├── latent_dim_8/
+    ├── latent_dim_16/
+    └── latent_dim_32/
+        ├── checkpoints/best_model.pt
+        ├── figures/latent_space/
+        ├── latent_data/
+        ├── tables/
+        ├── logs/experiment.log
+        ├── config_resolved.yaml
+        ├── metrics.json
+        ├── run_summary.md
+        └── artifact_manifest.json
+```
+
+Reexecutar o comando **não** sobrescreve execuções anteriores. `--output-dir` é
+o diretório *base* (a execução cria o `run_...` dentro dele); apontá-lo para um
+`run_...` existente é rejeitado com uma mensagem de conflito, a menos que se
+passe `--overwrite` explicitamente. Veja [`docs/execution.md`](docs/execution.md).
+
+O `best_model.pt` contém pesos, estado do otimizador, do scheduler, do early
+stopping e a configuração resolvida; permite retomar o treinamento, e
+checkpoints antigos (só pesos) continuam válidos para gerar evidências. Veja
+[`docs/reproducibility.md`](docs/reproducibility.md).
+
+### Dados sintéticos e idioma
+
+Testes e smoke test usam dados **sintéticos**; seus diretórios contêm
+`smoke_test` ou `synthetic` e seus relatórios declaram que não são resultados
+científicos. A comparação científica usa somente MNIST e Fashion-MNIST.
+
+Convenção de idioma: a documentação (README e `docs/`) é em **português**;
+código, identificadores, docstrings, logs e mensagens técnicas são em
+**inglês**; `run_summary.md` e `latent_dimension_comparison_summary.md`
+(gerados pelo código) são em **inglês**.
 
 ---
 

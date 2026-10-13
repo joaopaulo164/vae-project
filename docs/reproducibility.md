@@ -1,109 +1,137 @@
-# AvaliaÁ„o
-
-## ExtraÁ„o de RepresentaÁıes Latentes
-
-MÛdulo: \evaluation/latent_extraction.py\
-Extrai latent_mean (determinÌstico), latent_log_variance e latent_sample.
-latent_mean È preferido para projeÁıes determinÌsticas.
-
-## MÈtricas de ReconstruÁ„o
-
-- MSE mÈdio por pixel
-- BCE mÈdio por pixel
-MÛdulo: \evaluation/reconstruction_metrics.py\
-
-## MÈtricas de Clustering (subsidi·rias)
-
-- Silhouette Score
-- Calinski-Harabasz Index
-- Davies-Bouldin Index
-MÛdulo: \evaluation/clustering_metrics.py\
-
-## Classificador Linear (subsidi·rio)
-
-Regress„o logÌstica sobre latent_mean.
-Treino: split de treino. SeleÁ„o: validaÁ„o. Teste: apenas na fase final.
-MÛdulo: \evaluation/classification_metrics.py\
-"@
-Set-Content -Path "docs/evaluation.md" -Value # Protocolo Experimental
-
-## Fase A: SeleÁ„o de Topologia
-
-Treina small, medium e deep com mesma latent_dim, seed, lr, etc.
-Seleciona topologia com menor val_total_loss.
-Comando: \select-topology\
-
-## Fase B: ComparaÁ„o de Dimensıes Latentes
-
-MantÈm topologia selecionada. Varia apenas latent_dimension: [2, 8, 16, 32].
-Par‚metros constantes: dataset, seed, lr, batch_size, max_epochs, loss, splits.
-Comando: \compare-latent-dims\
-
-## Fase C: AvaliaÁ„o Final
-
-Carrega melhor checkpoint. Avalia UMA VEZ no conjunto de teste.
-Resultados claramente marcados como mÈtricas de teste.
-MÛdulo: \experiments/final_evaluation.py\
-
-## Experimento Supervisionado (opcional)
-
-Habilitado por supervised_component.enabled: true.
-Resultados armazenados em diretÛrio separado (supervised/).
-Nunca misturar com resultados do experimento n„o supervisionado.
-
-# reproducibility.md  
-# Protocolo Experimental
-
-## Fase A: SeleÁ„o de Topologia
-
-Treina small, medium e deep com mesma latent_dim, seed, lr, etc.
-Seleciona topologia com menor val_total_loss.
-Comando: \select-topology\
-
-## Fase B: ComparaÁ„o de Dimensıes Latentes
-
-MantÈm topologia selecionada. Varia apenas latent_dimension: [2, 8, 16, 32].
-Par‚metros constantes: dataset, seed, lr, batch_size, max_epochs, loss, splits.
-Comando: \compare-latent-dims\
-
-## Fase C: AvaliaÁ„o Final
-
-Carrega melhor checkpoint. Avalia UMA VEZ no conjunto de teste.
-Resultados claramente marcados como mÈtricas de teste.
-MÛdulo: \experiments/final_evaluation.py\
-
-## Experimento Supervisionado (opcional)
-
-Habilitado por supervised_component.enabled: true.
-Resultados armazenados em diretÛrio separado (supervised/).
-Nunca misturar com resultados do experimento n„o supervisionado. = @"
 # Reprodutibilidade
 
-## Seeds Configurados
+Este documento descreve o que o projeto faz para que uma execu√ß√£o possa ser
+repetida, auditada e, quando poss√≠vel, retomada. Conven√ß√£o de idioma: esta
+documenta√ß√£o √© em portugu√™s; c√≥digo, docstrings, logs e os resumos gerados
+(`run_summary.md`, `latent_dimension_comparison_summary.md`) s√£o em ingl√™s.
 
-- Python random: random.seed(seed)
-- NumPy: np.random.seed(seed)
-- PyTorch CPU: torch.manual_seed(seed)
-- PyTorch CUDA: torch.cuda.manual_seed_all(seed)
+## Seed √∫nico
 
-MÛdulo: \utils/reproducibility.py\
+Todos os experimentos usam **um √∫nico seed** (`reproducibility.global_seed: 42`).
+N√£o h√° lista de seeds e a variabilidade entre seeds **n√£o √© estimada**.
 
-## Modo DeterminÌstico
+`set_global_seed` (`utils/reproducibility.py`) fixa:
 
-Habilitado por: reproducibility.deterministic_mode: true
-Ativa torch.use_deterministic_algorithms(True).
-Pode causar erros se n„o houver kernel determinÌstico disponÌvel.
+- `random.seed(seed)`;
+- `numpy.random.seed(seed)`;
+- `torch.manual_seed(seed)` e `torch.cuda.manual_seed_all(seed)`.
 
-## Metadados Registrados por ExecuÁ„o
+Na compara√ß√£o de dimens√µes latentes, o seed √© aplicado **de novo antes de cada
+dimens√£o**, e cada dimens√£o cria modelo, otimizador, scheduler e early stopping
+novos. A divis√£o treino/valida√ß√£o usa `splits.seed: 42` e √© a mesma para todas as
+dimens√µes. A amostragem das proje√ß√µes (`projections.sampling.seed: 42`) e os
+`random_state` de UMAP e t-SNE (42) tamb√©m s√£o fixos.
 
-- environment.json: versıes de todas as bibliotecas, OS, hardware, git hash
-- config_resolved.yaml: configuraÁ„o completa resolvida
-- run_summary.md: resumo da execuÁ„o
+## Modo determin√≠stico
 
-## LimitaÁıes
+`reproducibility.deterministic_mode: true` (usado nos YAMLs de compara√ß√£o) ativa
+`torch.use_deterministic_algorithms(True)`, `cudnn.deterministic = True`,
+`cudnn.benchmark = False` e define `CUBLAS_WORKSPACE_CONFIG` quando necess√°rio.
+Em GPU, isso pode tornar opera√ß√µes mais lentas ou falhar se n√£o houver kernel
+determin√≠stico.
 
-Reprodutibilidade bit-a-bit entre diferentes:
-- Hardware (CPU vs GPU)
-- Versıes de CUDA
-- Versıes de bibliotecas
-N√O È garantida, mesmo com seeds idÍnticos.
+## Metadados registrados por execu√ß√£o
+
+| Arquivo | Conte√∫do |
+|---|---|
+| `config_resolved.yaml` | Configura√ß√£o completa resolvida (por dimens√£o, na compara√ß√£o) |
+| `environment.json` | Vers√µes de bibliotecas, sistema, hardware e hash do git (execu√ß√µes `train`/`run-pipeline`) |
+| `metrics.json` | M√©tricas, seed, split, status e `data_origin` |
+| `run_summary.md` | Resumo leg√≠vel da execu√ß√£o (em ingl√™s) |
+| `artifact_manifest.json` | Arquivos gerados, status, tamanho, data e SHA-256 |
+| `checkpoints/checkpoint_metadata.json` | Metadados do melhor checkpoint |
+
+## Checkpoint com estado completo
+
+`checkpoints/best_model.pt` √© salvo sempre que a loss total de valida√ß√£o melhora.
+Ele guarda, al√©m dos pesos, o estado necess√°rio para retomar o treino:
+
+| Chave | Quando existe |
+|---|---|
+| `model_state_dict` | sempre |
+| `optimizer_state_dict` | quando o otimizador √© passado (o `VAETrainer` sempre passa) |
+| `scheduler_state_dict` | somente se existe scheduler (`scheduler.enabled: true`) |
+| `scaler_state_dict` | somente se um `GradScaler` (AMP) √© fornecido; o projeto n√£o usa AMP por padr√£o |
+| `early_stopping_state` | melhor valor, melhor epoch, contador de paci√™ncia, flag de disparo |
+| `supervised_head_state_dict` | somente se h√° cabe√ßa supervisionada |
+| `epoch`, `best_epoch` | epoch do checkpoint |
+| `best_val_total_loss`, `val_reconstruction_loss`, `val_kl_divergence_loss`, `val_classification_loss` | losses de valida√ß√£o do melhor epoch |
+| `latent_dimension`, `topology_name`, `hidden_dimensions` | identidade do modelo |
+| `global_seed`, `dataset_name`, `experiment_type` | proveni√™ncia |
+| `resolved_config` | configura√ß√£o resolvida (tipos primitivos) |
+| `metadata` | o mesmo conte√∫do de `checkpoint_metadata.json` |
+
+O arquivo cont√©m apenas tensores e tipos primitivos, portanto √© carregado com
+`torch.load(..., weights_only=True)`.
+
+O estado de early stopping e do scheduler √© atualizado **antes** do salvamento,
+de modo que o checkpoint representa o estado a partir do qual o treino continua
+no epoch seguinte.
+
+### Dois cen√°rios de carga
+
+**Infer√™ncia / gera√ß√£o de evid√™ncias** ‚Äî `ModelCheckpointer.load_for_inference`
+(`load_best` √© um alias mantido para os chamadores existentes). Exige apenas os
+pesos e os metadados. Valida `latent_dimension` e `hidden_dimensions` (topologia)
+contra o modelo e levanta `CheckpointError` em caso de diverg√™ncia.
+
+**Retomada de treino** ‚Äî `ModelCheckpointer.load_for_resume` e
+`VAETrainer.resume_from_checkpoint()`. Exige tamb√©m otimizador e, se existirem no
+treino, scheduler, scaler, early stopping e cabe√ßa supervisionada. Depois:
+
+```python
+state = trainer.resume_from_checkpoint()
+trainer.fit(train_loader, val_loader, dataset_name, start_epoch=state.next_epoch)
+```
+
+O treino continua em `best_epoch + 1`. Como s√≥ o **melhor** checkpoint √© salvo,
+epochs executados depois do melhor n√£o s√£o recuperados.
+
+### Compatibilidade com checkpoints antigos
+
+Checkpoints anteriores (um `state_dict` puro em `best_model.pt` mais
+`checkpoint_metadata.json`) continuam funcionando **para infer√™ncia**. Ao tentar
+retomar o treino a partir deles, o projeto n√£o falha em sil√™ncio: registra um
+erro e levanta `CheckpointError` com a mensagem
+`Checkpoint ... cannot be used to resume training: it does not contain the
+required state (optimizer_state_dict, ...)`. Para obter um checkpoint retom√°vel √©
+preciso treinar de novo.
+
+## Diret√≥rios exclusivos e n√£o sobrescrita
+
+Cada execu√ß√£o completa de `compare-latent-dims` grava em
+`.../latent_dimension_comparison/run_YYYYMMDD_HHMMSS_<id>/`. Uma execu√ß√£o nova
+nunca reutiliza o diret√≥rio de outra. Um `run_...` existente √© rejeitado, a menos
+que `--overwrite` seja passado explicitamente. Veja [`execution.md`](execution.md).
+
+## Dados sint√©ticos x experimento real
+
+Os testes e o smoke test usam dados **sint√©ticos** (tensores aleat√≥rios, sem
+download). Eles:
+
+- gravam em diret√≥rios cujo caminho cont√©m `smoke_test` ou `synthetic`;
+- declaram nos resumos que **n√£o s√£o resultados cient√≠ficos**;
+- marcam `data_origin = synthetic` no CSV consolidado, em `metrics.json` e no
+  manifesto.
+
+A compara√ß√£o cient√≠fica usa **somente MNIST e Fashion-MNIST** (`data_origin =
+real`). M√©tricas sint√©ticas nunca devem ser incorporadas a relat√≥rios cient√≠ficos.
+
+## Escopo do experimento principal
+
+- Compara√ß√£o principal **n√£o supervisionada** (`supervised_component.enabled:
+  false`): os r√≥tulos n√£o entram na loss nem na atualiza√ß√£o dos pesos; servem
+  apenas para colorir gr√°ficos e calcular m√©tricas subsidi√°rias.
+- O componente supervisionado √© um experimento **independente**, executado
+  manualmente depois da escolha da dimens√£o latente, com resultados em diret√≥rio
+  separado.
+- Topologia fixa (`medium`), selecionada previamente; `model.latent_dimension`
+  continua sendo um √∫nico inteiro.
+
+## Limita√ß√µes
+
+Reprodutibilidade bit a bit **n√£o √© garantida** entre hardware (CPU x GPU),
+vers√µes de CUDA, vers√µes de PyTorch ou de outras bibliotecas, mesmo com seeds
+id√™nticos. Registre `environment.json` e `config_resolved.yaml` junto com os
+resultados. UMAP e t-SNE s√£o estoc√°sticos; fixar `random_state` reduz, mas n√£o
+elimina, diferen√ßas entre plataformas.

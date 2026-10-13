@@ -2,34 +2,46 @@
 
 ## src/vae_project/
 
-| MÛdulo | Responsabilidade |
+| M√≥dulo | Responsabilidade |
 |--------|----------------|
 | cli.py | Interface de linha de comando (argparse) |
-| config/ | Carregamento, validaÁ„o e modelos de configuraÁ„o |
-| data/ | Datasets, divisıes, loaders, transforms |
-| models/ | VAE, componentes MLP, cabeÁa supervisionada |
-| training/ | Trainer, losses, early stopping, checkpointing, histÛrico |
-| evaluation/ | ExtraÁ„o latente, mÈtricas de clustering, classificaÁ„o, reconstruÁ„o |
-| visualization/ | Plots de treino, reconstruÁ„o, espaÁo latente, configuraÁ„o visual |
+| config/ | Carregamento, valida√ß√£o e modelos de configura√ß√£o |
+| data/ | Datasets, divis√µes, loaders, transforms |
+| models/ | VAE, componentes MLP, cabe√ßa supervisionada |
+| training/ | Trainer, losses, early stopping, checkpointing, hist√≥rico |
+| evaluation/ | Extra√ß√£o latente, m√©tricas de clustering, classifica√ß√£o, reconstru√ß√£o |
+| visualization/ | Plots de treino, reconstru√ß√£o, espa√ßo latente, configura√ß√£o visual |
 | projections/ | PCA, UMAP, t-SNE, subsampling |
-| experiments/ | Runner, seleÁ„o de topologia, comparaÁ„o de dimensıes, avaliaÁ„o final |
-| reporting/ | Manifesto de artefatos, sum·rio de run, relatÛrio comparativo |
+| experiments/ | Runner, sele√ß√£o de topologia, compara√ß√£o de dimens√µes, gera√ß√£o de evid√™ncias latentes, avalia√ß√£o final |
+| reporting/ | Manifesto de artefatos, sum√°rio de run, relat√≥rio comparativo |
 | utils/ | Device, paths, logging, timing, reprodutibilidade, ambiente |
+
+### M√≥dulos de experimentos
+
+| Arquivo | Responsabilidade |
+|---------|------------------|
+| experiments/runner.py | Pipeline de um √∫nico treinamento (`train`, `run-pipeline`) |
+| experiments/topology_selection.py | Sele√ß√£o entre `small`, `medium` e `deep` |
+| experiments/latent_dimension_comparison.py | Treina um VAE independente por dimens√£o e consolida os resultados |
+| experiments/latent_evidence.py | Servi√ßo compartilhado: extra√ß√£o do `latent_mean`, figuras, proje√ß√µes, tabelas e m√©tricas subsidi√°rias de um modelo treinado. Usado pelo `runner.py` e pela compara√ß√£o de dimens√µes |
+| experiments/final_evaluation.py | Avalia√ß√£o √∫nica no conjunto de teste |
 
 ## configs/
 
 Arquivos YAML para cada experimento. Separados por dataset, tipo de experimento
-e objetivo (seleÁ„o de topologia, comparaÁ„o de dimensıes, etc.)
+e objetivo (sele√ß√£o de topologia, compara√ß√£o de dimens√µes, etc.)
 
 ## tests/
 
-- unit/: testes r·pidos sem I/O de dados reais
-- integration/: testes com dados sintÈticos, loop completo
-- conftest.py: fixtures compartilhadas (dados sintÈticos)
+- unit/: testes r√°pidos sem I/O de dados reais
+- integration/: testes com dados sint√©ticos, loop completo
+- conftest.py: fixtures compartilhadas (dados sint√©ticos)
 
 ## artifacts/
 
-Gerado em runtime. Nunca versionado. Cada run em subdiretÛrio ˙nico.
+Gerado em runtime. Nunca versionado. Cada run em subdiret√≥rio √∫nico; a compara√ß√£o
+de dimens√µes usa `latent_dimension_comparison/run_<timestamp>_<id>/latent_dim_N/`
+e nunca reutiliza um `run_...` existente sem `--overwrite`.
 
 ## data/
 

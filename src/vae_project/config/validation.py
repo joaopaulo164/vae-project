@@ -6,7 +6,7 @@ that guide the user toward fixing configuration issues.
 
 from __future__ import annotations
 
-from vae_project.config.models import DevicePolicy, ExperimentConfig
+from vae_project.config.models import ExperimentConfig
 
 
 def validate_config(config: ExperimentConfig) -> list[str]:
@@ -27,8 +27,64 @@ def validate_config(config: ExperimentConfig) -> list[str]:
     errors.extend(_validate_early_stopping(config))
     errors.extend(_validate_projections(config))
     errors.extend(_validate_supervised_component(config))
-    errors.extend(_validate_runtime(config))
     errors.extend(_validate_plotting(config))
+    errors.extend(_validate_latent_dimension_comparison(config))
+
+    return errors
+
+
+def _is_plain_int(value: object) -> bool:
+    """Return True for real integers (``bool`` is rejected)."""
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def validate_comparison_dimensions(dimensions: object) -> list[str]:
+    """Validate a list of latent dimensions used by the comparison experiment.
+
+    Rejects empty lists, non-integers, values below 2 and duplicates. Duplicates
+    are rejected (not silently normalized) because every entry is an independent
+    training run and would otherwise overwrite the same output directory.
+
+    Args:
+        dimensions: Candidate value for ``latent_dimension_comparison.dimensions``.
+
+    Returns:
+        List of error messages; empty when the value is valid.
+    """
+    errors: list[str] = []
+    if not isinstance(dimensions, list) or not dimensions:
+        return [
+            "latent_dimension_comparison.dimensions must be a non-empty list of integers, "
+            "e.g. [2, 8, 16, 32]."
+        ]
+
+    valid_ints: list[int] = []
+    for dim in dimensions:
+        if not _is_plain_int(dim):
+            errors.append(
+                f"latent_dimension_comparison.dimensions must contain only integers, found {dim!r}"
+            )
+        elif dim < 2:
+            errors.append(f"latent_dimension_comparison.dimensions must be >= 2, found {dim}")
+        else:
+            valid_ints.append(dim)
+
+    duplicated = sorted({dim for dim in valid_ints if valid_ints.count(dim) > 1})
+    if duplicated:
+        errors.append(
+            f"latent_dimension_comparison.dimensions contains duplicates: {duplicated}. "
+            "Each dimension is an independent training run and must appear once."
+        )
+    return errors
+
+
+def _validate_latent_dimension_comparison(config: ExperimentConfig) -> list[str]:
+    """Validate the latent dimension comparison block."""
+    comparison = config.latent_dimension_comparison
+    errors = validate_comparison_dimensions(comparison.dimensions)
+
+    if not isinstance(comparison.fixed_topology, str) or not comparison.fixed_topology:
+        errors.append("latent_dimension_comparison.fixed_topology must be a non-empty string.")
 
     return errors
 
@@ -37,8 +93,15 @@ def _validate_model(config: ExperimentConfig) -> list[str]:
     """Validate model configuration."""
     errors: list[str] = []
 
-    if config.model.latent_dimension < 1:
-        errors.append(f"model.latent_dimension must be >= 1, got {config.model.latent_dimension}")
+    latent_dimension = config.model.latent_dimension
+    if not _is_plain_int(latent_dimension):
+        errors.append(
+            "model.latent_dimension must be a single integer, got "
+            f"{latent_dimension!r}. A list of dimensions belongs to "
+            "latent_dimension_comparison.dimensions."
+        )
+    elif latent_dimension < 1:
+        errors.append(f"model.latent_dimension must be >= 1, got {latent_dimension}")
 
     if config.model.input_dimension <= 0:
         errors.append(f"model.input_dimension must be > 0, got {config.model.input_dimension}")
@@ -104,10 +167,6 @@ def _validate_loss(config: ExperimentConfig) -> list[str]:
         errors.append(
             f"loss.beta must be > 0, got {config.loss.beta}. " "Standard VAE uses beta=1.0."
         )
-
-    if config.loss.beta != 1.0:
-        # Not an error, but we note it for logging purposes
-        pass
 
     valid_reductions = {"sum", "mean"}
     if config.loss.reduction not in valid_reductions:
@@ -182,17 +241,6 @@ def _validate_supervised_component(config: ExperimentConfig) -> list[str]:
                 "supervised_component.hidden_dimensions must not be empty "
                 "when supervised component is enabled."
             )
-
-    return errors
-
-
-def _validate_runtime(config: ExperimentConfig) -> list[str]:
-    """Validate runtime configuration."""
-    errors: list[str] = []
-
-    if config.runtime.device == DevicePolicy.CUDA:
-        # We warn here; actual CUDA check happens at runtime
-        pass
 
     return errors
 

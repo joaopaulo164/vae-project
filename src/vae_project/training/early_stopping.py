@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import Any
 
 from vae_project.config.models import EarlyStoppingConfig
 
@@ -139,6 +140,30 @@ class EarlyStopping:
             True if this epoch produced the best validation metric.
         """
         return current_epoch == self._best_epoch
+
+    def state_dict(self) -> dict[str, Any]:
+        """Return the state needed to resume monitoring, as plain Python types.
+
+        Returns:
+            Dictionary with best value/epoch, patience counter and trigger flag.
+        """
+        return {
+            "best_value": self._best_value,
+            "best_epoch": self._best_epoch,
+            "patience_counter": self._patience_counter,
+            "triggered": self._triggered,
+        }
+
+    def load_state_dict(self, state: dict[str, Any]) -> None:
+        """Restore the state produced by :meth:`state_dict`.
+
+        Args:
+            state: Dictionary previously returned by :meth:`state_dict`.
+        """
+        self._best_value = float(state["best_value"])
+        self._best_epoch = int(state["best_epoch"])
+        self._patience_counter = int(state["patience_counter"])
+        self._triggered = bool(state["triggered"])
 
     def get_state(self) -> EarlyStoppingState:
         """Return a snapshot of the current state.

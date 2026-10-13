@@ -1,154 +1,120 @@
-# Instalação no Windows
+# ExecuÃ§Ã£o
 
-## Requisitos
-
-- Windows 10/11 (64-bit)
-- Python 3.11 ou superior
-- PowerShell 5.1 ou superior
-
-## Passos
-
-### 1. Criar ambiente virtual
-
-\\\powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-\\\
-
-### 2. Instalar dependências
-
-\\\powershell
-python -m pip install --upgrade pip
-pip install -e '.[dev]'
-\\\
-
-### 3. Instalar PyTorch (CPU)
-
-\\\powershell
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-\\\
-
-### 4. Instalar PyTorch com CUDA
-
-Consulte https://pytorch.org para o comando correto para sua versão CUDA.
-
-### 5. Verificar instalação
-
-\\\powershell
-python -c 'import vae_project; print(vae_project.__version__)'
-python -m vae_project.cli smoke-test
-\\\
-"@
-Set-Content -Path "docs/installation.md" -Value # Datasets
-
-## MNIST
-
-- 10 classes: dígitos 0–9
-- Treino oficial: 60.000 amostras
-- Teste oficial: 10.000 amostras
-- Imagens: 28x28 pixels, escala de cinza
-- Carregado via: torchvision.datasets.MNIST
-
-## Fashion-MNIST
-
-- 10 classes: T-shirt/top, Trouser, Pullover, Dress, Coat, Sandal, Shirt, Sneaker, Bag, Ankle boot
-- Treino oficial: 60.000 amostras
-- Teste oficial: 10.000 amostras
-- Imagens: 28x28 pixels, escala de cinza
-- Carregado via: torchvision.datasets.FashionMNIST
-
-## Normalização
-
-Imagens normalizadas para [0, 1] por ToTensor() (divisão por 255).
-Não é aplicada normalização z-score para manter compatibilidade com
-a saída Sigmoid do decoder e a reconstruction loss BCE.
-
-## Divisão Treino/Validação/Teste
-
-- Conjunto de treino oficial ? divisão estratificada 90%/10%
-- Seed configurável em splits.seed (padrão: 42)
-- Validação: seleção de modelo e early stopping
-- Teste: avaliação final única
-
-## Prevenção de Data Leakage
-
-O conjunto de teste NUNCA é usado para:
-- Selecionar topologia
-- Comparar dimensões latentes
-- Ajustar hiperparâmetros
-- Early stopping ou seleção de checkpoint
-
-## Quick Mode
-
-quick_mode: true usa subconjunto reduzido para smoke tests.
-Resultados marcados com [QUICK MODE] não são científicos.
-
-# execution.md
-# Datasets
-
-## MNIST
-
-- 10 classes: dígitos 0–9
-- Treino oficial: 60.000 amostras
-- Teste oficial: 10.000 amostras
-- Imagens: 28x28 pixels, escala de cinza
-- Carregado via: torchvision.datasets.MNIST
-
-## Fashion-MNIST
-
-- 10 classes: T-shirt/top, Trouser, Pullover, Dress, Coat, Sandal, Shirt, Sneaker, Bag, Ankle boot
-- Treino oficial: 60.000 amostras
-- Teste oficial: 10.000 amostras
-- Imagens: 28x28 pixels, escala de cinza
-- Carregado via: torchvision.datasets.FashionMNIST
-
-## Normalização
-
-Imagens normalizadas para [0, 1] por ToTensor() (divisão por 255).
-Não é aplicada normalização z-score para manter compatibilidade com
-a saída Sigmoid do decoder e a reconstruction loss BCE.
-
-## Divisão Treino/Validação/Teste
-
-- Conjunto de treino oficial ? divisão estratificada 90%/10%
-- Seed configurável em splits.seed (padrão: 42)
-- Validação: seleção de modelo e early stopping
-- Teste: avaliação final única
-
-## Prevenção de Data Leakage
-
-O conjunto de teste NUNCA é usado para:
-- Selecionar topologia
-- Comparar dimensões latentes
-- Ajustar hiperparâmetros
-- Early stopping ou seleção de checkpoint
-
-## Quick Mode
-
-quick_mode: true usa subconjunto reduzido para smoke tests.
-Resultados marcados com [QUICK MODE] não são científicos. = @"
-# Execução
+Todos os comandos abaixo sÃ£o para PowerShell, com o ambiente virtual ativado
+(veja [`installation.md`](installation.md)).
 
 ## Comandos CLI
 
-\\\powershell
-# Validar configuração
+```powershell
+# Validar configuraÃ§Ã£o
 python -m vae_project.cli validate-config --config configs/mnist_unsupervised.yaml
 
-# Treinar (pipeline completo)
+# Treinar
+python -m vae_project.cli train --config configs/mnist_unsupervised.yaml
+
+# Pipeline completo (treino + avaliaÃ§Ã£o + visualizaÃ§Ã£o)
 python -m vae_project.cli run-pipeline --config configs/mnist_unsupervised.yaml
 
 # Selecionar topologia
 python -m vae_project.cli select-topology --config configs/topology_selection_mnist.yaml
 
-# Comparar dimensões latentes
+# Comparar dimensÃµes latentes (treino, figuras, mÃ©tricas e tabelas por dimensÃ£o)
 python -m vae_project.cli compare-latent-dims --config configs/latent_dimensions_mnist.yaml
+python -m vae_project.cli compare-latent-dims --config configs/latent_dimensions_fashion_mnist.yaml
 
-# Smoke test (sem downloads)
+# Smoke test (dados sintÃ©ticos, sem downloads)
 python -m vae_project.cli smoke-test
-\\\
+```
 
-## Artefatos Gerados
+## ComparaÃ§Ã£o de dimensÃµes latentes
 
-Cada execução cria um diretório único em:
+Cada execuÃ§Ã£o completa de `compare-latent-dims` cria um diretÃ³rio **exclusivo**
+`run_YYYYMMDD_HHMMSS_<identificador>/` dentro do diretÃ³rio base
+`artifacts/<dataset>/<unsupervised|supervised>/latent_dimension_comparison/`.
+O identificador Ã© um sufixo hexadecimal aleatÃ³rio (ou o valor de `--run-name`,
+sanitizado). O nome nÃ£o contÃ©m caracteres proibidos no Windows, e duas
+execuÃ§Ãµes iniciadas no mesmo segundo nunca compartilham o diretÃ³rio.
+
+| OpÃ§Ã£o | Efeito |
+|---|---|
+| `--output-dir BASE` | `BASE` Ã© o diretÃ³rio **base**; a execuÃ§Ã£o cria `BASE/run_<timestamp>_<id>/`. |
+| `--output-dir RUN_EXISTENTE` | Rejeitado com mensagem de conflito (cÃ³digo de saÃ­da `1`), sem gravar nada. |
+| `--output-dir RUN_EXISTENTE --overwrite` | Reutiliza o diretÃ³rio e substitui arquivos de mesmo nome. Um aviso Ã© registrado no log. |
+| `--run-name NOME` | Usa `NOME` (sanitizado) como identificador no lugar do sufixo aleatÃ³rio. |
+
+CÃ³digo de saÃ­da:
+
+- `0`: todas as dimensÃµes terminaram com status `completed`;
+- `1`: erro de configuraÃ§Ã£o, ao menos uma dimensÃ£o `partial` ou `failed`, ou falha geral.
+
+Ao final, o terminal mostra uma tabela com `latent_dimension`, `execution_status`,
+`best_epoch`, `validation_total_loss` e `training_time`.
+
+### Tempo de execuÃ§Ã£o
+
+Em CPU, a comparaÃ§Ã£o executa quatro treinamentos completos e, para cada dimensÃ£o
+maior que 2, PCA, UMAP e t-SNE. O tempo total pode ser longo. A primeira execuÃ§Ã£o
+do UMAP compila cÃ³digo com numba (cerca de 30 segundos). Se houver GPU NVIDIA com
+CUDA, `runtime.device: auto` a utiliza.
+
+### ReexecuÃ§Ã£o
+
+Reexecutar o mesmo comando **nÃ£o** sobrescreve a execuÃ§Ã£o anterior: cada chamada
+gera um novo `run_<timestamp>_<id>/`. Somente `--overwrite`, junto de um
+`--output-dir` que aponte para um diretÃ³rio de execuÃ§Ã£o existente, permite
+substituir arquivos. Sem `--overwrite`, a execuÃ§Ã£o existente permanece intacta.
+
+### Retomar treinamento
+
+O `best_model.pt` guarda o estado completo de treino (otimizador, scheduler,
+contador de early stopping, configuraÃ§Ã£o resolvida). `VAETrainer.resume_from_checkpoint()`
+restaura esse estado e `fit(..., start_epoch=...)` continua do epoch seguinte ao
+do checkpoint. Checkpoints antigos (apenas pesos) continuam servindo para
+inferÃªncia/evidÃªncias, mas a retomada falha com a mensagem
+`cannot be used to resume training`. Detalhes em
+[`reproducibility.md`](reproducibility.md).
+
+### Smoke test sintÃ©tico
+
+Os testes automatizados e o smoke test usam dados **sintÃ©ticos**. Seus
+diretÃ³rios precisam conter `smoke_test` ou `synthetic` (a funÃ§Ã£o rejeita outros
+nomes), e `run_summary.md`, `latent_dimension_comparison_summary.md`,
+`metrics.json`, o manifesto e o CSV trazem `data_origin = synthetic` e o aviso
+de que **nÃ£o sÃ£o resultados cientÃ­ficos**. A comparaÃ§Ã£o cientÃ­fica usa apenas
+MNIST e Fashion-MNIST.
+
+## ConvenÃ§Ã£o de idioma
+
+- DocumentaÃ§Ã£o (`README.md` e `docs/`): portuguÃªs.
+- CÃ³digo, identificadores, docstrings, mensagens de log e erros tÃ©cnicos: inglÃªs.
+- `run_summary.md` e `latent_dimension_comparison_summary.md`: inglÃªs
+  (sÃ£o artefatos gerados pelo cÃ³digo).
+
+## Artefatos gerados
+
+ExecuÃ§Ãµes de `train` e `run-pipeline`:
+
+```
 artifacts/{dataset}/{unsupervised|supervised}/latent_{dim}/run_{timestamp}/
+```
+
+ComparaÃ§Ã£o de dimensÃµes latentes:
+
+```
+artifacts/{dataset}/{unsupervised|supervised}/latent_dimension_comparison/
+â””â”€â”€ run_{YYYYMMDD_HHMMSS}_{id}/
+    â”œâ”€â”€ latent_dimension_comparison.csv
+    â”œâ”€â”€ latent_dimension_comparison_summary.md
+    â””â”€â”€ latent_dim_{N}/
+        â”œâ”€â”€ checkpoints/
+        â”œâ”€â”€ figures/latent_space/
+        â”œâ”€â”€ latent_data/
+        â”œâ”€â”€ tables/
+        â”œâ”€â”€ logs/experiment.log
+        â”œâ”€â”€ config_resolved.yaml
+        â”œâ”€â”€ metrics.json
+        â”œâ”€â”€ run_summary.md
+        â””â”€â”€ artifact_manifest.json
+```
+
+O catÃ¡logo completo de arquivos estÃ¡ em [`evidence_catalog.md`](evidence_catalog.md).

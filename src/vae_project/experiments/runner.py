@@ -29,14 +29,9 @@ from vae_project.config.models import ExperimentConfig
 from vae_project.data.datasets import get_raw_datasets
 from vae_project.data.loaders import create_data_loaders
 from vae_project.data.splits import create_data_splits, save_class_distribution
-from vae_project.evaluation.clustering_metrics import compute_clustering_metrics
-from vae_project.evaluation.latent_extraction import extract_latent_representations
+from vae_project.experiments.latent_evidence import EvidenceDirs, generate_latent_evidence
 from vae_project.models.supervised_head import SupervisedClassificationHead
 from vae_project.models.vae import VariationalAutoencoder
-from vae_project.projections.pca import PCAProjection
-from vae_project.projections.sampling import stratified_subsample
-from vae_project.projections.tsne import TSNEProjection
-from vae_project.projections.umap_projection import UMAPProjection
 from vae_project.reporting.artifact_manifest import ArtifactManifest
 from vae_project.reporting.run_summary import generate_run_summary
 from vae_project.training.checkpointing import ModelCheckpointer
@@ -48,13 +43,6 @@ from vae_project.utils.logging import setup_logging
 from vae_project.utils.paths import build_run_dir, create_run_structure
 from vae_project.utils.reproducibility import set_global_seed
 from vae_project.utils.timing import Timer
-from vae_project.visualization.latent_plots import (
-    plot_latent_space_direct_2d,
-    plot_pca_explained_variance,
-    plot_pca_projection,
-    plot_tsne_projection,
-    plot_umap_projection,
-)
 from vae_project.visualization.plot_settings import apply_plot_settings
 from vae_project.visualization.reconstruction_plots import (
     plot_generated_samples,
@@ -333,122 +321,27 @@ class ExperimentRunner:
         device: torch.device,
         splits,  # type: ignore[type-arg]
     ) -> None:
-        """Extract latent representations and generate projections."""
+        """Extract latent representations and generate projections and metrics.
+
+        Delegates to :func:`generate_latent_evidence`, which is shared with the
+        latent dimension comparison.
+        """
         if self._run_dirs is None:
             return
 
-        val_reps = extract_latent_representations(
+        result = generate_latent_evidence(
             model=model,
             data_loader=loaders.val,
             device=device,
-            split_name="val",
             class_names=splits.class_names,
-            dataset_name=self.config.dataset.name.value,
-            is_quick_mode=self.config.project.quick_mode,
+            config=self.config,
+            dirs=EvidenceDirs(
+                figures_latent=self._run_dirs["figures_latent"],
+                latent_data=self._run_dirs["latent_data"],
+                tables=self._run_dirs["tables"],
+            ),
+            split_name="val",
+            run_id=self._run_dir.name if self._run_dir else "",
+            raise_on_failure=True,
         )
-        val_reps.save(
-            output_dir=self._run_dirs["latent_data"],
-            save_npz=self.config.artifacts.save_latent_npz,
-        )
-
-        latent_dim = self.config.model.latent_dimension
-        dataset_name = self.config.dataset.name.value
-        figures_latent = self._run_dirs["figures_latent"]
-        is_quick = self.config.project.quick_mode
-        proj_config = self.config.projections
-        plot_config = self.config.plotting
-
-        if latent_dim == 2:
-            plot_latent_space_direct_2d(
-                latent_means=val_reps.latent_means,
-                labels=val_reps.labels,
-                class_names=splits.class_names,
-                output_dir=figures_latent,
-                config=plot_config,
-                dataset_name=dataset_name,
-                split_name="val",
-                is_quick_mode=is_quick,
-            )
-        else:
-            # Subsample for projection
-            sample_cfg = proj_config.sampling
-            sample_vecs, sample_labels, sample_indices = stratified_subsample(
-                vectors=val_reps.latent_means,
-                labels=val_reps.labels,
-                max_samples=sample_cfg.max_samples,
-                seed=sample_cfg.seed,
-            )
-
-            # Save sample indices
-            import pandas as pd
-
-            indices_df = pd.DataFrame({"sample_index": sample_indices})
-            indices_path = self._run_dirs["latent_data"] / "projection_sample_indices.csv"
-            indices_df.to_csv(indices_path, index=False)
-
-            if "pca" in proj_config.methods:
-                pca = PCAProjection(n_components=2)
-                pca_result = pca.fit_transform(sample_vecs)
-                pca_result.save_explained_variance_csv(
-                    self._run_dirs["tables"] / "pca_explained_variance.csv"
-                )
-                plot_pca_projection(
-                    pca_result=pca_result,
-                    labels=sample_labels,
-                    class_names=splits.class_names,
-                    output_dir=figures_latent,
-                    config=plot_config,
-                    dataset_name=dataset_name,
-                    is_quick_mode=is_quick,
-                )
-                plot_pca_explained_variance(
-                    pca_result=pca_result,
-                    output_dir=figures_latent,
-                    config=plot_config,
-                    dataset_name=dataset_name,
-                    is_quick_mode=is_quick,
-                )
-
-            if "umap" in proj_config.methods:
-                umap_proj = UMAPProjection(proj_config.umap)
-                umap_result = umap_proj.fit_transform(sample_vecs)
-                plot_umap_projection(
-                    umap_result=umap_result,
-                    labels=sample_labels,
-                    class_names=splits.class_names,
-                    output_dir=figures_latent,
-                    config=plot_config,
-                    dataset_name=dataset_name,
-                    is_quick_mode=is_quick,
-                )
-
-            if "tsne" in proj_config.methods:
-                tsne_proj = TSNEProjection(proj_config.tsne)
-                tsne_result = tsne_proj.fit_transform(sample_vecs)
-                plot_tsne_projection(
-                    tsne_result=tsne_result,
-                    labels=sample_labels,
-                    class_names=splits.class_names,
-                    output_dir=figures_latent,
-                    config=plot_config,
-                    dataset_name=dataset_name,
-                    is_quick_mode=is_quick,
-                )
-
-        # Subsidiary metrics
-        metrics_config = self.config.metrics
-        clustering_result = compute_clustering_metrics(
-            latent_vectors=val_reps.latent_means,
-            labels=val_reps.labels,
-            space_name="val_latent_original",
-            num_classes=splits.num_classes,
-            max_samples_silhouette=metrics_config.silhouette_sample_size,
-        )
-
-        # Save metrics table
-        import pandas as pd
-
-        metrics_df = pd.DataFrame([clustering_result.as_dict()])
-        metrics_path = self._run_dirs["tables"] / "projection_metrics.csv"
-        metrics_df.to_csv(metrics_path, index=False)
-        logger.info("Subsidiary metrics saved: %s", metrics_path)
+        logger.info("Latent evidence generated: %d files", len(result.all_files()))

@@ -146,6 +146,37 @@ def load_config(config_path: Path | str) -> ExperimentConfig:
     return config
 
 
+def _to_serializable(obj: Any) -> Any:
+    """Recursively convert dataclass/enum/Path to serializable types."""
+    if hasattr(obj, "__dataclass_fields__"):
+        return {k: _to_serializable(v) for k, v in obj.__dict__.items()}
+    if isinstance(obj, Path):
+        return str(obj)
+    if hasattr(obj, "value"):  # Enum
+        return obj.value
+    if isinstance(obj, list):
+        return [_to_serializable(item) for item in obj]
+    if isinstance(obj, tuple):
+        return [_to_serializable(item) for item in obj]
+    if isinstance(obj, dict):
+        return {k: _to_serializable(v) for k, v in obj.items()}
+    return obj
+
+
+def config_to_dict(config: ExperimentConfig) -> dict[str, Any]:
+    """Convert a resolved configuration to plain Python types.
+
+    Args:
+        config: The resolved ExperimentConfig instance.
+
+    Returns:
+        Nested dictionary containing only dict/list/str/int/float/bool/None,
+        suitable for YAML or for ``torch.load(weights_only=True)`` checkpoints.
+    """
+    serializable: dict[str, Any] = _to_serializable(config)
+    return serializable
+
+
 def save_resolved_config(config: ExperimentConfig, output_path: Path) -> None:
     """Serialize the resolved configuration to a YAML file.
 
@@ -159,23 +190,7 @@ def save_resolved_config(config: ExperimentConfig, output_path: Path) -> None:
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    def _to_serializable(obj: Any) -> Any:
-        """Recursively convert dataclass/enum/Path to serializable types."""
-        if hasattr(obj, "__dataclass_fields__"):
-            return {k: _to_serializable(v) for k, v in obj.__dict__.items()}
-        if isinstance(obj, Path):
-            return str(obj)
-        if hasattr(obj, "value"):  # Enum
-            return obj.value
-        if isinstance(obj, list):
-            return [_to_serializable(item) for item in obj]
-        if isinstance(obj, tuple):
-            return [_to_serializable(item) for item in obj]
-        if isinstance(obj, dict):
-            return {k: _to_serializable(v) for k, v in obj.items()}
-        return obj
-
-    serializable = _to_serializable(config)
+    serializable = config_to_dict(config)
 
     with output_path.open("w", encoding="utf-8") as file_handle:
         yaml.safe_dump(serializable, file_handle, default_flow_style=False, sort_keys=True)

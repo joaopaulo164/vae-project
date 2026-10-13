@@ -97,3 +97,26 @@ class TestModelCheckpointer:
         assert loaded is not None
         assert loaded.epoch == 7
         assert abs(loaded.val_total_loss - 0.25) < 1e-6
+
+    def test_load_best_rejects_latent_dimension_mismatch(self, tmp_path: Path) -> None:
+        """A checkpoint of another latent dimension is never loaded."""
+        checkpointer = ModelCheckpointer(checkpoint_dir=tmp_path / "ckpt")
+        checkpointer.save_if_best(_make_model(), 0.3, _make_metadata())
+        other = VariationalAutoencoder(
+            ModelConfig(latent_dimension=8, topology=TopologyConfig(hidden_dimensions=[32, 16]))
+        )
+        with pytest.raises(CheckpointError, match="latent"):
+            checkpointer.load_best(other, device=torch.device("cpu"))
+
+    def test_metadata_preserves_seed_and_experiment_type(self, tmp_path: Path) -> None:
+        """Seed and experiment type are stored in the checkpoint metadata."""
+        metadata = _make_metadata()
+        metadata.seed = 42
+        metadata.experiment_type = "unsupervised"
+        checkpointer = ModelCheckpointer(checkpoint_dir=tmp_path / "ckpt")
+        checkpointer.save_if_best(_make_model(), 0.3, metadata)
+        loaded = checkpointer.get_metadata()
+        assert loaded is not None
+        assert loaded.seed == 42
+        assert loaded.experiment_type == "unsupervised"
+        assert loaded.latent_dimension == 4
