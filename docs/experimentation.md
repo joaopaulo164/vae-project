@@ -15,14 +15,25 @@ python -m vae_project.cli run-factorial-protocol --config configs/factorial_prot
 
 ### Grade
 
-3 topologias × 4 dimensões latentes = **12 configurações por dataset** e
-**24 treinamentos de grade** nos dois datasets:
+3 topologias × 5 dimensões latentes = **15 configurações por dataset** e
+**30 treinamentos de grade** nos dois datasets:
 
 | Topologia | hidden_dimensions | Dimensões latentes |
 |-----------|-------------------|--------------------|
-| small | [256, 128] | 2, 8, 16, 32 |
-| medium | [512, 256] | 2, 8, 16, 32 |
-| deep | [512, 256, 128] | 2, 8, 16, 32 |
+| small | [256, 128] | 2, 4, 8, 16, 32 |
+| medium | [512, 256] | 2, 4, 8, 16, 32 |
+| deep | [512, 256, 128] | 2, 4, 8, 16, 32 |
+
+A grade é gerada dinamicamente a partir de `factorial_comparison.topologies` e
+`factorial_comparison.latent_dimensions`; configurações históricas que declaram
+apenas `[2, 8, 16, 32]` continuam executando 12 combinações.
+
+**Por que a dimensão 4:** ela preenche o intervalo entre 2D e 8D, cria a progressão
+2, 4, 8, 16 e 32 e permite avaliar os ganhos marginais com o aumento da dimensão.
+Não há resultado presumido antes dos experimentos: se 4D é suficiente, melhor ou pior
+que 2D e 8D é uma pergunta empírica. A 4D é tratada como qualquer dimensão maior que
+2 (sem visualização direta; PCA, UMAP e t-SNE), e suas três combinações (small, medium
+e deep) concorrem à seleção pelo mesmo critério de validação.
 
 Somente a topologia, suas `hidden_dimensions` e a dimensão latente variam.
 Permanecem constantes: dataset, divisão dos dados, seed, batch size, learning
@@ -38,7 +49,8 @@ Nenhum peso é reaproveitado entre combinações.
 
 ### Fase 1: grade não supervisionada
 
-Todas as 12 combinações usam `supervised_component.enabled: false`: os rótulos
+Todas as combinações da grade (15 na configuração padrão) usam
+`supervised_component.enabled: false`: os rótulos
 não participam da loss nem dos gradientes e a classification loss é ausente/zero.
 Os rótulos só são usados depois do treino para colorir figuras, nomear classes e
 calcular métricas subsidiárias. Os artefatos são identificados como
@@ -52,7 +64,7 @@ Cada combinação gera, a partir do **melhor checkpoint** (menor
 | `figures/training/` | `training_total_loss`, `training_loss_components` (PNG e SVG) |
 | `figures/reconstructions/` | `reconstruction_comparison` (PNG e SVG) |
 | `figures/generated_samples/` | `generated_samples` (PNG e SVG) |
-| `figures/latent_space/` | 2D: `latent_space_direct_2d`; 8/16/32: `latent_space_pca_Nd`, `latent_space_umap_Nd`, `latent_space_tsne_Nd`, `pca_explained_variance_Nd` |
+| `figures/latent_space/` | 2D: `latent_space_direct_2d`; 4/8/16/32: `latent_space_pca_Nd`, `latent_space_umap_Nd`, `latent_space_tsne_Nd`, `pca_explained_variance_Nd` |
 
 Para a dimensão 2 o espaço latente é desenhado diretamente
 (`latent_mean_0` × `latent_mean_1`); PCA, UMAP e t-SNE nunca o substituem.

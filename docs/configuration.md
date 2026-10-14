@@ -105,7 +105,7 @@ protocol:
 factorial_comparison:
   enabled: true
   topologies: [small, medium, deep]
-  latent_dimensions: [2, 8, 16, 32]
+  latent_dimensions: [2, 4, 8, 16, 32]      # 3 topologias x 5 dimensões = 15 combinações
   generate_full_evidence: true
   selection:
     primary_metric: validation_total_loss
@@ -159,5 +159,24 @@ Validações do protocolo (a configuração é rejeitada com mensagem explicativ
 
 O hash da configuração (`protocol_state.json`) detecta mudanças entre a execução
 original e a retomada.
+
+#### Grade fatorial dinâmica e a dimensão 4
+
+O número de combinações é sempre `len(topologies) × len(latent_dimensions)`; não há
+contagem fixa na lógica. Os arquivos padrão declaram `[2, 4, 8, 16, 32]`, o que
+produz **15 combinações por dataset** (30 nos dois datasets). Uma configuração
+histórica que declare explicitamente apenas `[2, 8, 16, 32]` continua válida e
+executa 12 combinações.
+
+A dimensão 4 preenche o intervalo entre 2D e 8D, cria a progressão 2, 4, 8, 16 e 32
+e permite avaliar os ganhos marginais com o aumento da dimensão. Não há resultado
+presumido antes dos experimentos. Ela é tratada como qualquer dimensão maior que 2:
+sem visualização direta, com PCA, UMAP e t-SNE (`latent_space_pca_4d.*`,
+`latent_space_umap_4d.*`, `latent_space_tsne_4d.*`, `pca_explained_variance_4d.*`).
+
+Como `latent_dimensions` entra no hash, **uma rodada iniciada com 12 combinações não
+pode ser retomada com a configuração de 15** (e vice-versa): a retomada é recusada
+com `configuration differs` e os resultados das duas grades nunca se misturam.
+Inicie uma nova rodada para a nova grade.
 
 Veja configs/base.yaml para todos os valores padrão documentados.

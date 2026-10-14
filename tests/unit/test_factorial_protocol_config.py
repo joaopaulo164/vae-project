@@ -33,7 +33,8 @@ PROTOCOL_CONFIGS = (
     "configs/factorial_protocol_fashion_mnist.yaml",
 )
 EXPECTED_HIDDEN = {"small": (256, 128), "medium": (512, 256), "deep": (512, 256, 128)}
-EXPECTED_DIMENSIONS = [2, 8, 16, 32]
+EXPECTED_DIMENSIONS = [2, 4, 8, 16, 32]
+LEGACY_DIMENSIONS = [2, 8, 16, 32]
 
 
 def _factorial_config(**overrides: object) -> ExperimentConfig:
@@ -45,17 +46,83 @@ def _factorial_config(**overrides: object) -> ExperimentConfig:
 
 
 @pytest.mark.parametrize("config_path", PROTOCOL_CONFIGS)
-def test_protocol_configs_define_the_twelve_combination_grid(config_path: str) -> None:
+def test_protocol_configs_define_the_default_grid_with_4d(config_path: str) -> None:
     config = load_config(PROJECT_ROOT / config_path)
     grid = build_factorial_grid(config)
+    expected_count = len(EXPECTED_HIDDEN) * len(EXPECTED_DIMENSIONS)
 
-    assert len(grid) == 12
-    assert len({combination.key for combination in grid}) == 12
+    assert config.factorial_comparison.latent_dimensions == EXPECTED_DIMENSIONS
+    assert len(grid) == expected_count
+    assert len({combination.key for combination in grid}) == expected_count
     assert {(c.topology_name, c.latent_dimension) for c in grid} == {
         (name, dim) for name in EXPECTED_HIDDEN for dim in EXPECTED_DIMENSIONS
     }
     for combination in grid:
         assert combination.hidden_dimensions == EXPECTED_HIDDEN[combination.topology_name]
+
+
+def test_default_grid_has_fifteen_combinations_including_each_4d_topology() -> None:
+    grid = build_factorial_grid(_factorial_config())
+    four_dimensional = [c for c in grid if c.latent_dimension == 4]
+
+    assert len(grid) == 15
+    assert [c.topology_name for c in four_dimensional] == ["small", "medium", "deep"]
+    assert [c.key for c in four_dimensional] == [
+        "small/latent_dim_4",
+        "medium/latent_dim_4",
+        "deep/latent_dim_4",
+    ]
+    assert four_dimensional[0].relative_directory == Path("grid/small/latent_dim_4")
+
+
+def test_grid_order_is_deterministic_and_topology_major() -> None:
+    first = [c.key for c in build_factorial_grid(_factorial_config())]
+    second = [c.key for c in build_factorial_grid(_factorial_config())]
+
+    assert first == second
+    assert first[:6] == [
+        "small/latent_dim_2",
+        "small/latent_dim_4",
+        "small/latent_dim_8",
+        "small/latent_dim_16",
+        "small/latent_dim_32",
+        "medium/latent_dim_2",
+    ]
+    assert first[-1] == "deep/latent_dim_32"
+
+
+@pytest.mark.parametrize(
+    "dimensions",
+    [LEGACY_DIMENSIONS, [4], [2, 4], [2, 3, 5, 7, 11, 13]],
+)
+def test_grid_size_follows_the_configured_dimensions(dimensions: list[int]) -> None:
+    config = _factorial_config(latent_dimensions=list(dimensions))
+    grid = build_factorial_grid(config)
+
+    assert validate_config(config) == []
+    assert len(grid) == len(config.factorial_comparison.topologies) * len(dimensions)
+    assert {c.latent_dimension for c in grid} == set(dimensions)
+
+
+def test_legacy_yaml_with_four_dimensions_keeps_twelve_combinations() -> None:
+    config = load_config_from_dict(
+        {
+            "factorial_comparison": {
+                "enabled": True,
+                "latent_dimensions": LEGACY_DIMENSIONS,
+            }
+        }
+    )
+    grid = build_factorial_grid(config)
+
+    assert len(grid) == 12
+    assert 4 not in {c.latent_dimension for c in grid}
+
+
+def test_validation_accepts_four_dimensional_latent_space() -> None:
+    config = _factorial_config(latent_dimensions=[2, 4])
+
+    assert validate_config(config) == []
 
 
 @pytest.mark.parametrize("config_path", PROTOCOL_CONFIGS)
@@ -78,8 +145,9 @@ def test_protocol_configs_keep_one_seed_and_an_unsupervised_grid(config_path: st
 def test_grid_is_topology_major_and_ordered() -> None:
     grid = build_factorial_grid(_factorial_config())
 
-    assert [c.key for c in grid][:5] == [
+    assert [c.key for c in grid][:6] == [
         "small/latent_dim_2",
+        "small/latent_dim_4",
         "small/latent_dim_8",
         "small/latent_dim_16",
         "small/latent_dim_32",
@@ -207,6 +275,23 @@ def test_state_round_trip_and_combination_buckets(tmp_path: Path) -> None:
     assert loaded.current_combination is None
     assert loaded.warnings == ["w"]
     assert loaded.phase == PHASE_GRID
+
+
+def test_config_hash_distinguishes_the_legacy_and_the_default_grid() -> None:
+    default = _factorial_config()
+    legacy = _factorial_config(latent_dimensions=list(LEGACY_DIMENSIONS))
+
+    assert compute_config_hash(default) != compute_config_hash(legacy)
+
+
+def test_resume_rejects_a_legacy_twelve_combination_run_for_a_fifteen_combination_grid() -> None:
+    legacy = _factorial_config(latent_dimensions=list(LEGACY_DIMENSIONS))
+    legacy_state = _state(legacy)
+    current = _factorial_config()
+
+    with pytest.raises(ProtocolStateError, match="configuration differs"):
+        validate_resume(legacy_state, current)
+    validate_resume(legacy_state, legacy)
 
 
 def test_config_hash_ignores_run_name_but_not_scientific_values() -> None:

@@ -463,7 +463,7 @@ class FactorialComparisonConfig:
 
     enabled: bool = False
     topologies: list[str] = field(default_factory=lambda: list(STANDARD_TOPOLOGIES))
-    latent_dimensions: list[int] = field(default_factory=lambda: [2, 8, 16, 32])
+    latent_dimensions: list[int] = field(default_factory=lambda: [2, 4, 8, 16, 32])
     generate_full_evidence: bool = True
     selection: SelectionConfig = field(default_factory=SelectionConfig)
 

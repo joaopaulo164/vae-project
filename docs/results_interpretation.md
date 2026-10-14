@@ -90,7 +90,8 @@ Cuidados específicos:
 
 ## 3.1 Protocolo fatorial: topologia × dimensão
 
-No `run-factorial-protocol`, cada uma das 12 combinações tem figuras de
+No `run-factorial-protocol`, cada uma das 15 combinações da grade padrão (3
+topologias × 2, 4, 8, 16 e 32) tem figuras de
 treinamento, reconstruções, amostras geradas e espaço latente. Perguntas-guia
 (responda **você**, olhando as figuras; o código não preenche observações visuais):
 
@@ -109,8 +110,12 @@ Cuidados específicos:
 - Todos os modelos usam os mesmos exemplos de projeção e de reconstrução
   (`shared/`), mas os valores latentes são diferentes entre modelos; formas e
   distâncias não são diretamente comparáveis entre combinações.
-- A dimensão 2 é desenhada diretamente; 8, 16 e 32 são projetadas por PCA, UMAP e
+- A dimensão 2 é desenhada diretamente; 4, 8, 16 e 32 são projetadas por PCA, UMAP e
   t-SNE. Somente o PCA possui variância explicada.
+- A dimensão 4 foi incluída para preencher o intervalo entre 2D e 8D e permitir
+  avaliar os ganhos marginais ao longo da progressão 2, 4, 8, 16 e 32. Não há
+  resultado presumido: compare 2D, 4D e 8D apenas pelo que as figuras e as tabelas
+  mostrarem.
 - A vencedora tem a menor `validation_total_loss`; isso não significa melhor
   agrupamento. Com um único seed (42), diferenças pequenas podem ser variação de
   treinamento.

@@ -1,6 +1,6 @@
 # factorial_protocol_mnist.yaml - Main scientific protocol for MNIST.
 #
-# 3 topologies x 4 latent dimensions = 12 unsupervised configurations.
+# 3 topologies x 5 latent dimensions = 15 unsupervised configurations.
 # The winner (lowest validation total loss) is evaluated once on the test split
 # and then trained again, from scratch, with the supervised extension.
 #
@@ -79,7 +79,7 @@ protocol:
 factorial_comparison:
   enabled: true
   topologies: [small, medium, deep]
-  latent_dimensions: [2, 8, 16, 32]
+  latent_dimensions: [2, 4, 8, 16, 32]
   generate_full_evidence: true
   selection:
     primary_metric: validation_total_loss

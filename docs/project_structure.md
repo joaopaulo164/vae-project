@@ -43,7 +43,9 @@
 Arquivos YAML para cada experimento. Separados por dataset, tipo de experimento
 e objetivo (seleção de topologia, comparação de dimensões, etc.). O protocolo
 principal usa `factorial_protocol_mnist.yaml` e
-`factorial_protocol_fashion_mnist.yaml`.
+`factorial_protocol_fashion_mnist.yaml`, cuja grade padrão é 3 topologias × 5
+dimensões (2, 4, 8, 16 e 32) = 15 configurações por dataset. Os arquivos
+`latent_dimensions_*.yaml` (comparação especializada) continuam com `[2, 8, 16, 32]`.
 
 ## tests/
 

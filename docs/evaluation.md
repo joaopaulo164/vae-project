@@ -24,9 +24,11 @@ amostras geradas, extração de `latent_mean` e espaço latente. A análise nunc
 os pesos da última época. Todos os fluxos usam o mesmo serviço
 (`experiments/single_experiment.py`, que reutiliza `experiments/latent_evidence.py`).
 
-**`run-factorial-protocol`**: executa o mesmo serviço para as 12 combinações
-(3 topologias × 4 dimensões), seleciona a vencedora só pela validação e a avalia
-no teste (seção 8).
+**`run-factorial-protocol`**: executa o mesmo serviço para as 15 combinações
+(3 topologias × 5 dimensões: 2, 4, 8, 16 e 32), seleciona a vencedora só pela
+validação e a avalia no teste (seção 8). A 4D é avaliada como qualquer dimensão
+maior que 2 (PCA, UMAP, t-SNE e variância explicada do PCA); o número de combinações
+sempre acompanha a configuração.
 
 O classificador linear, as métricas numéricas de reconstrução, ARI/NMI do K-Means e
 a trustworthiness estão implementados, mas **não** fazem parte desses fluxos:

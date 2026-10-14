@@ -78,7 +78,8 @@ synthetic`, diretório com `smoke_test`/`synthetic`) **não** devem ser citados.
 ## Limitações a declarar
 
 1. Um seed por configuração (42): a variabilidade entre seeds não é estimada.
-   Diferenças pequenas entre as 12 combinações podem ser variação de treinamento.
+   Diferenças pequenas entre as combinações da grade (15 na configuração padrão)
+   podem ser variação de treinamento.
 2. Arquitetura MLP totalmente conectada, sem estrutura espacial.
 3. As métricas usam os rótulos como clusters, não clusters descobertos.
 4. UMAP e t-SNE distorcem distâncias globais; não reportar variância explicada

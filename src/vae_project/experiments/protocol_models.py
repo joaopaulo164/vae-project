@@ -147,8 +147,9 @@ def build_factorial_grid(config: ExperimentConfig) -> list[FactorialCombination]
     """Build the full factorial grid in a deterministic order.
 
     The order is topology-major (small, medium, deep, as configured) and
-    dimension-minor, so the default grid is small x [2, 8, 16, 32], medium x
-    [2, 8, 16, 32], deep x [2, 8, 16, 32].
+    dimension-minor, so the default grid is small x [2, 4, 8, 16, 32], medium x
+    [2, 4, 8, 16, 32], deep x [2, 4, 8, 16, 32] (15 combinations; the count always
+    follows the configured lists).
 
     Args:
         config: Configuration with ``factorial_comparison`` filled in.

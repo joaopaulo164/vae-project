@@ -42,7 +42,8 @@ reutilizar um `run_...`; o `run-factorial-protocol` não possui essa opção.
 
 ## Protocolo fatorial: duração elevada
 
-O `run-factorial-protocol` treina 12 modelos, mais um supervisionado, por dataset.
+O `run-factorial-protocol` treina 15 modelos (3 topologias × 2, 4, 8, 16 e 32), mais
+um supervisionado, por dataset; o total acompanha a configuração.
 Em CPU isso pode levar horas. Use GPU NVIDIA (`runtime.device: auto`) se houver e
 reduza `projections.sampling.max_samples` para acelerar UMAP e t-SNE. Não altere as
 variáveis controladas (épocas, batch size etc.) se os datasets forem comparados.
@@ -63,6 +64,7 @@ Mensagens comuns:
 |----------|-------|------|
 | `protocol_state.json` ausente ou ilegível | O diretório não é uma rodada do protocolo | Confira o caminho do `run_...` |
 | Hash de configuração diferente | A configuração mudou desde a rodada original | Use a configuração original ou inicie uma rodada nova |
+| `configuration differs` ao retomar uma rodada antiga | A rodada foi criada com a grade histórica de 12 combinações (`[2, 8, 16, 32]`) e a configuração atual tem 15 (`[2, 4, 8, 16, 32]`), ou o inverso | Retome com o YAML original da rodada ou inicie uma nova; as duas grades nunca são misturadas |
 | `Cannot resume: the protocol run already finished` | Rodada com status `completed` | Nada a retomar; inicie uma nova rodada se necessário |
 | `resume is disabled` | `protocol.resume_if_interrupted: false` | Habilite no YAML |
 | Dados reais x sintéticos | A rodada foi criada com outro tipo de dados | Retome com o mesmo tipo de dados |

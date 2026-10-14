@@ -10,7 +10,7 @@ Todos os comandos abaixo são para PowerShell, com o ambiente virtual ativado
 | 1. Execução individual | `train`, `run-pipeline` | Serviço técnico: uma topologia, uma dimensão, um modo |
 | 2. Seleção especializada de topologias | `select-topology` | Compara topologias para uma dimensão fixa |
 | 3. Comparação especializada de dimensões | `compare-latent-dims` | Compara dimensões para uma topologia fixa |
-| 4. **Protocolo fatorial principal** | `run-factorial-protocol` | 3 topologias × 4 dimensões, seleção, teste da vencedora e extensão supervisionada |
+| 4. **Protocolo fatorial principal** | `run-factorial-protocol` | 3 topologias × 5 dimensões, seleção, teste da vencedora e extensão supervisionada |
 | 5. Avaliação final | fase do protocolo | Teste somente da vencedora |
 | 6. Extensão supervisionada | fase do protocolo | Mesmo dataset, topologia, dimensão e seed, modelo novo |
 
@@ -61,7 +61,9 @@ Fases executadas, nesta ordem:
 
 1. validação da configuração e criação do diretório exclusivo da rodada;
 2. ambiente e arquivos compartilhados (`shared/`);
-3. as 12 combinações não supervisionadas (`grid/<topologia>/latent_dim_<N>/`);
+3. as combinações não supervisionadas da grade (15 na configuração padrão:
+   3 topologias × 2, 4, 8, 16 e 32; o total acompanha a configuração),
+   em `grid/<topologia>/latent_dim_<N>/`;
 4. tabela fatorial e seleção da vencedora (`selection/`), somente com a validação;
 5. avaliação da vencedora no teste, uma única vez (`final_evaluation/`);
 6. configuração supervisionada (`generated_configs/`) e, no modo `automatic`,
@@ -76,10 +78,11 @@ possíveis são `completed`, `completed_with_warnings`, `failed`, `interrupted` 
 
 ### Tempo de execução e CUDA
 
-Em CPU a rodada é longa: 12 treinamentos completos (até 50 épocas cada, com early
-stopping), PCA, UMAP e t-SNE para cada dimensão maior que 2, mais o treinamento
-supervisionado. Os dois datasets somam 24 treinamentos de grade. Com GPU NVIDIA,
-`runtime.device: auto` utiliza CUDA; a execução em CPU continua sendo suportada.
+Em CPU a rodada é longa: 15 treinamentos completos (até 50 épocas cada, com early
+stopping), PCA, UMAP e t-SNE para cada dimensão maior que 2 (inclusive 4), mais o
+treinamento supervisionado. Os dois datasets somam 30 treinamentos de grade. Com GPU
+NVIDIA, `runtime.device: auto` utiliza CUDA; a execução em CPU continua sendo
+suportada.
 
 ### Retomada
 
@@ -97,6 +100,11 @@ evidências mínimas); ignora as íntegras; reinicia as incompletas (o diretóri
 parcial é preservado como `<nome>_incomplete_<timestamp>`); não sobrescreve
 arquivos válidos; e registra a retomada em `resumed_at`. Uma rodada com status
 `completed` não pode ser retomada.
+
+Uma rodada iniciada com a grade histórica de 12 combinações (`[2, 8, 16, 32]`) **não
+pode ser retomada** com a configuração padrão de 15 combinações: o hash da
+configuração difere e a retomada é recusada, para que os resultados das duas grades
+não se misturem. Inicie uma nova rodada; as anteriores permanecem intactas.
 
 Uma rodada que falhou e foi retomada com sucesso termina como
 `completed_with_warnings`, porque os erros anteriores permanecem registrados.
@@ -207,7 +215,7 @@ Protocolo fatorial:
 artifacts/{dataset}/unsupervised/factorial_protocol/
 └── run_{YYYYMMDD_HHMMSS}_{id}/
     ├── shared/
-    ├── grid/{small|medium|deep}/latent_dim_{2|8|16|32}/
+    ├── grid/{small|medium|deep}/latent_dim_{2|4|8|16|32}/
     ├── selection/
     ├── final_evaluation/
     ├── supervised_extension/

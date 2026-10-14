@@ -22,7 +22,10 @@ python -m pytest -m unit
 python -m pytest tests/integration/test_latent_dimension_comparison.py
 
 # Apenas o protocolo fatorial (inclui execuções sintéticas de treinamento; leva alguns minutos em CPU)
-python -m pytest tests/integration/test_factorial_protocol.py tests/unit/test_factorial_protocol_config.py tests/unit/test_protocol_selection.py
+python -m pytest tests/integration/test_factorial_protocol.py tests/unit/test_factorial_protocol_config.py tests/unit/test_protocol_selection.py tests/unit/test_latent_dimension_4.py
+
+# Apenas os testes específicos da dimensão 4
+python -m pytest tests/unit/test_latent_dimension_4.py
 
 # Com cobertura
 python -m pytest --cov=vae_project --cov-report=term-missing
@@ -60,7 +63,8 @@ python -m bandit -r src
 | integration/test_latent_dimension_comparison.py | Fluxo completo de `compare-latent-dims` (veja abaixo) |
 | integration/test_factorial_protocol.py | Fluxo completo de `run-factorial-protocol` com grade reduzida e dados sintéticos (veja abaixo) |
 | integration/protocol_support.py | Auxiliares dos testes: dublê de UMAP, configuração e divisões sintéticas |
-| unit/test_factorial_protocol_config.py | Grade, validação da configuração do protocolo, estado, hash e validação da retomada |
+| unit/test_factorial_protocol_config.py | Grade (15 combinações padrão, geração dinâmica, ordem, grade histórica de 12), validação da configuração do protocolo, estado, hash e validação da retomada |
+| unit/test_latent_dimension_4.py | VAE 4D (shapes de média, log-variância e amostra), decoder, cabeça supervisionada e checkpoint com 4 componentes |
 | unit/test_protocol_selection.py | Seleção da vencedora, desempates, exclusões, tabela fatorial, `selected_configuration.yaml` |
 | unit/test_training_plots.py | Marcadores de melhor época e de early stopping nas curvas de treinamento |
 | integration/test_smoke_cli.py | CLI smoke test e validate-config |
@@ -122,6 +126,16 @@ t-SNE em amostra pequena. O arquivo verifica:
 - configuração supervisionada, mesma topologia e dimensão, treinamento independente
   e comparação entre os modos;
 - estado, retomada, hash incompatível, prevenção de sobrescrita e modo manual;
+- dimensão 4 (`TestFourDimensionalLatentSpace`): evidências completas (curvas,
+  reconstruções, amostras, PCA/UMAP/t-SNE e variância explicada em PNG e SVG),
+  ausência do gráfico direto, 4 componentes de média e log-variância, checkpoint com
+  `latent_dimension = 4`, vencedora 4D avaliada no teste, e extensão supervisionada
+  com cabeça de entrada 4D (o vencedor 4D é forçado só na ordenação, com treino e
+  avaliação reais sobre dados sintéticos);
+- tamanho da grade acompanhando a configuração (`TestGridSizeFollowsTheConfiguration`):
+  progresso `Combination N/total`, retomada que treina só a 4D faltante, 4D concluída
+  não repetida, recusa de retomar uma rodada de 12 combinações com a configuração de
+  15 e grade histórica sem 4D que não cria `latent_dim_4`;
 - manifestos e resumos locais e globais;
 - falha parcial de projeção (`partial`) e falha de uma combinação;
 - chamada do serviço pela CLI (`run-factorial-protocol`).

@@ -8,7 +8,7 @@ Um projeto científico completo, reprodutível e executável para estudo de
 > Consulte a seção [Análise Visual e Métricas Subsidiárias](#análise-visual-e-métricas-subsidiárias).
 
 > **Protocolo científico principal:** `run-factorial-protocol` compara
-> 3 topologias × 4 dimensões latentes (12 configurações por dataset) e
+> 3 topologias × 5 dimensões latentes (15 configurações por dataset) e
 > automatiza seleção, avaliação final e extensão supervisionada. Veja
 > [Protocolo Fatorial Principal](#protocolo-fatorial-principal).
 
@@ -60,7 +60,7 @@ latente e como essas estruturas podem ser visualizadas e analisadas.
 
 | Objetivo | Módulo principal | Configuração | Artefatos |
 |---|---|---|---|
-| Comparar 3 topologias × 4 dimensões latentes (protocolo principal) | [`experiments/factorial_protocol.py`](src/vae_project/experiments/factorial_protocol.py) | [`factorial_protocol_mnist.yaml`](configs/factorial_protocol_mnist.yaml) | `factorial_protocol/run_*/` |
+| Comparar 3 topologias × 5 dimensões latentes (protocolo principal) | [`experiments/factorial_protocol.py`](src/vae_project/experiments/factorial_protocol.py) | [`factorial_protocol_mnist.yaml`](configs/factorial_protocol_mnist.yaml) | `factorial_protocol/run_*/` |
 | Treinar VAE com diferentes topologias | [`experiments/topology_selection.py`](src/vae_project/experiments/topology_selection.py) | [`topology_selection_mnist.yaml`](configs/topology_selection_mnist.yaml) | `topology_*/training_history.csv` |
 | Selecionar melhor modelo por validation loss | [`training/early_stopping.py`](src/vae_project/training/early_stopping.py) | `early_stopping.patience` | `checkpoints/best_model.pt` |
 | Analisar espaço latente 2D diretamente | [`visualization/latent_plots.py`](src/vae_project/visualization/latent_plots.py) | `model.latent_dimension: 2` | `latent_space_direct_2d.png` |
@@ -365,7 +365,7 @@ integral é o [`run-factorial-protocol`](#protocolo-fatorial-principal).
 | Dimensão | Visualização gerada |
 |----------|---------------------|
 | 2 | Gráfico direto `latent_mean_0` × `latent_mean_1` (sem PCA/UMAP/t-SNE) |
-| 8, 16, 32 | PCA, UMAP, t-SNE e variância explicada do PCA (PNG + SVG) |
+| 4, 8, 16, 32 | PCA, UMAP, t-SNE e variância explicada do PCA (PNG + SVG) |
 
 Pontos importantes:
 
@@ -395,9 +395,9 @@ dimensão. Veja [Localização dos Artefatos](#localização-dos-artefatos) e
 todo o fluxo:
 
 ```
-small, medium, deep  ×  2D, 8D, 16D, 32D
+small, medium, deep  ×  2D, 4D, 8D, 16D, 32D
         ↓
-12 configurações não supervisionadas por dataset
+15 configurações não supervisionadas por dataset
         ↓
 seleção da menor validation total loss
         ↓
@@ -426,9 +426,16 @@ python -m vae_project.cli run-factorial-protocol --config configs/factorial_prot
 
 Pontos principais:
 
-- **3 topologias × 4 dimensões = 12 configurações por dataset**, ou seja,
-  **24 treinamentos de grade** nos dois datasets (MNIST e Fashion-MNIST), mais um
-  treinamento supervisionado por dataset.
+- **3 topologias × 5 dimensões = 15 configurações por dataset**, ou seja,
+  **30 treinamentos de grade** nos dois datasets (MNIST e Fashion-MNIST), mais um
+  treinamento supervisionado por dataset. A grade é gerada dinamicamente a partir de
+  `factorial_comparison.topologies` e `factorial_comparison.latent_dimensions`:
+  uma configuração histórica que declare apenas `[2, 8, 16, 32]` continua
+  executando 12 combinações.
+- **Por que 4D:** a dimensão 4 preenche o intervalo entre 2D e 8D, cria a progressão
+  2, 4, 8, 16 e 32 e permite avaliar os ganhos marginais com o aumento da dimensão.
+  Não há resultado presumido antes dos experimentos. A 4D é tratada como qualquer
+  dimensão maior que 2: não possui visualização direta e usa PCA, UMAP e t-SNE.
 - Cada combinação cria um VAE novo, com otimizador, scheduler e early stopping
   novos e o seed reaplicado; nenhum peso é reaproveitado.
 - Somente topologia, `hidden_dimensions` e dimensão latente variam. Há **um único
@@ -456,8 +463,8 @@ Pontos principais:
 - **Prevenção de sobrescrita:** cada execução cria um `run_YYYYMMDD_HHMMSS_<id>/`
   novo e exclusivo; `--output-dir` é o diretório *base* e não habilita
   sobrescrita (o protocolo não possui `--overwrite`).
-- **Duração:** em CPU a rodada é muito longa (12 treinamentos completos, mais
-  UMAP e t-SNE para as dimensões 8, 16 e 32, mais o treinamento supervisionado).
+- **Duração:** em CPU a rodada é muito longa (15 treinamentos completos, mais
+  UMAP e t-SNE para as dimensões 4, 8, 16 e 32, mais o treinamento supervisionado).
   CUDA é opcional (`runtime.device: auto`).
 - Somente o PCA possui variância explicada. A análise visual é a evidência
   principal; as métricas são subsidiárias.

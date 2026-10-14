@@ -101,9 +101,9 @@ run_YYYYMMDD_HHMMSS_<id>/
 │   ├── reconstruction_sample_indices.csv
 │   └── generation_seed.json
 ├── grid/
-│   ├── small/    latent_dim_2/  latent_dim_8/  latent_dim_16/  latent_dim_32/
-│   ├── medium/   latent_dim_2/  latent_dim_8/  latent_dim_16/  latent_dim_32/
-│   └── deep/     latent_dim_2/  latent_dim_8/  latent_dim_16/  latent_dim_32/
+│   ├── small/    latent_dim_2/  latent_dim_4/  latent_dim_8/  latent_dim_16/  latent_dim_32/
+│   ├── medium/   latent_dim_2/  latent_dim_4/  latent_dim_8/  latent_dim_16/  latent_dim_32/
+│   └── deep/     latent_dim_2/  latent_dim_4/  latent_dim_8/  latent_dim_16/  latent_dim_32/
 ├── selection/
 │   ├── factorial_comparison.csv
 │   ├── selected_configuration.yaml
@@ -144,7 +144,13 @@ interrompido é preservado como `<nome>_incomplete_<timestamp>` na retomada.
 | Reconstruções | `reconstructions/reconstruction_comparison` |
 | Amostras geradas | `generated_samples/generated_samples` |
 | Espaço latente 2D | `latent_space/latent_space_direct_2d` |
-| Espaço latente N > 2 | `latent_space/latent_space_{pca,umap,tsne}_Nd`, `latent_space/pca_explained_variance_Nd` |
+| Espaço latente N > 2 (4, 8, 16, 32) | `latent_space/latent_space_{pca,umap,tsne}_Nd`, `latent_space/pca_explained_variance_Nd` |
+
+A grade padrão tem 15 combinações por dataset (3 topologias × 2, 4, 8, 16 e 32); o
+número de diretórios `latent_dim_<N>/` acompanha `factorial_comparison.latent_dimensions`.
+Para a dimensão 4 os arquivos são `latent_space_pca_4d`, `latent_space_umap_4d`,
+`latent_space_tsne_4d` e `pca_explained_variance_4d` (PNG e SVG), além de
+`tables/pca_explained_variance.csv`. A 4D **não** tem gráfico direto.
 
 `selection/factorial_comparison.csv` tem uma linha por combinação, com dataset,
 tipo de experimento, topologia, `hidden_dimensions`, dimensão, seed,

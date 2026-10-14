@@ -1,4 +1,4 @@
-﻿"""Integration tests for the factorial scientific protocol.
+"""Integration tests for the factorial scientific protocol.
 
 Everything runs on CPU with tiny synthetic data. No dataset is downloaded
 (sockets are blocked) and no real MNIST or Fashion-MNIST training happens. UMAP
@@ -1114,3 +1114,280 @@ def test_real_pca_umap_tsne_smoke(base_dir: Path, monkeypatch: pytest.MonkeyPatc
         assert (run_dir / "figures" / "latent_space" / f"{prefix}8d.png").is_file()
     metrics = pd.read_csv(run_dir / "tables" / "projection_metrics.csv")
     assert {"pca_2d", "umap_2d", "tsne_2d"} <= set(metrics["space_type"])
+
+
+# ---------------------------------------------------------------- 4D latent space
+
+FOUR_DIMENSIONAL = 4
+LEGACY_DIMENSIONS = [2, 8, 16, 32]
+
+
+def _force_winner(monkeypatch: pytest.MonkeyPatch, latent_dimension: int) -> None:
+    """Make the combination with ``latent_dimension`` win by fixing its validation loss.
+
+    Only the ranking input is controlled; every training, evidence and evaluation
+    step still runs for real on the synthetic data.
+    """
+    real_reader = factorial_protocol.read_combination_record
+
+    def biased_reader(protocol_dir: Path, combination: Any) -> Any:
+        record = real_reader(protocol_dir, combination)
+        if record is not None and record.validation_total_loss is not None:
+            offset = 0.0 if record.latent_dimension == latent_dimension else 1.0e6
+            record.validation_total_loss += offset
+        return record
+
+    monkeypatch.setattr(factorial_protocol, "read_combination_record", biased_reader)
+
+
+@pytest.fixture(scope="module")
+def four_dimensional(tmp_path_factory: pytest.TempPathFactory) -> CompletedProtocol:
+    """Run 2D and 4D for two topologies with a 4D winner (synthetic data only)."""
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(latent_evidence, "UMAPProjection", FakeUMAPProjection)
+    _block_network(monkeypatch)
+    recorder = _install_recorder(monkeypatch)
+    _force_winner(monkeypatch, FOUR_DIMENSIONAL)
+    try:
+        base = tmp_path_factory.mktemp("synthetic_smoke_test")
+        result = run_factorial_protocol(
+            make_protocol_config(["small", "deep"], [2, FOUR_DIMENSIONAL]),
+            base,
+            run_name="four_dimensional",
+            splits=make_synthetic_splits(),
+        )
+    finally:
+        monkeypatch.undo()
+    return CompletedProtocol(result, recorder, result.protocol_directory)
+
+
+class TestFourDimensionalLatentSpace:
+
+    def test_grid_contains_the_4d_combination_of_every_topology(
+        self, four_dimensional: CompletedProtocol
+    ) -> None:
+        keys = {record.key for record in four_dimensional.result.records}
+
+        assert four_dimensional.result.status == "completed"
+        assert {"small/latent_dim_4", "deep/latent_dim_4"} <= keys
+        assert len(keys) == 4
+
+    @pytest.mark.parametrize("topology", ["small", "deep"])
+    def test_4d_run_has_the_complete_evidence_set(
+        self, four_dimensional: CompletedProtocol, topology: str
+    ) -> None:
+        run_dir = _grid_dir(four_dimensional, topology, FOUR_DIMENSIONAL)
+        latent_dir = run_dir / "figures" / "latent_space"
+
+        for name in REQUIRED_RUN_FILES:
+            assert (run_dir / name).stat().st_size > 0, name
+        for category in FIGURE_CATEGORIES:
+            for suffix in ("png", "svg"):
+                assert _files(run_dir / "figures" / category, f"*.{suffix}"), (category, suffix)
+        for prefix in LATENT_PLOT_PREFIXES:
+            for suffix in ("png", "svg"):
+                assert (latent_dir / f"{prefix}4d.{suffix}").stat().st_size > 0
+        for suffix in ("png", "svg"):
+            assert (latent_dir / f"pca_explained_variance_4d.{suffix}").stat().st_size > 0
+        assert (run_dir / "tables" / "pca_explained_variance.csv").is_file()
+        assert (run_dir / "latent_data" / "projection_sample_indices.csv").is_file()
+
+    @pytest.mark.parametrize("topology", ["small", "deep"])
+    def test_4d_is_never_shown_with_the_direct_plot(
+        self, four_dimensional: CompletedProtocol, topology: str
+    ) -> None:
+        latent_dir = _grid_dir(four_dimensional, topology, FOUR_DIMENSIONAL) / "figures"
+        names = {path.name for path in (latent_dir / "latent_space").iterdir()}
+
+        assert not any(name.startswith(DIRECT_STEM) for name in names)
+        assert not any("direct" in name for name in names)
+
+    def test_4d_latent_representations_have_four_mean_and_log_variance_components(
+        self, four_dimensional: CompletedProtocol
+    ) -> None:
+        run_dir = _grid_dir(four_dimensional, "small", FOUR_DIMENSIONAL)
+        table = pd.read_csv(run_dir / "latent_data" / "latent_representations.csv")
+
+        assert set(table["latent_dimension"]) == {FOUR_DIMENSIONAL}
+        assert [c for c in table.columns if c.startswith("latent_mean_")] == [
+            f"latent_mean_{index}" for index in range(FOUR_DIMENSIONAL)
+        ]
+        log_variance = [c for c in table.columns if c.startswith("latent_log_var")]
+        assert len(log_variance) == FOUR_DIMENSIONAL
+
+    def test_4d_pca_variance_is_recorded_in_the_factorial_table(
+        self, four_dimensional: CompletedProtocol
+    ) -> None:
+        table = pd.read_csv(four_dimensional.directory / "selection" / "factorial_comparison.csv")
+        four = table[table["latent_dimension"] == FOUR_DIMENSIONAL]
+
+        assert len(four) == 2
+        assert four["pca_cumulative_explained_variance"].notna().all()
+        assert (
+            table.loc[table["latent_dimension"] == 2, "pca_cumulative_explained_variance"]
+            .isna()
+            .all()
+        )
+
+    def test_4d_checkpoint_stores_the_dimension_and_topology(
+        self, four_dimensional: CompletedProtocol
+    ) -> None:
+        metadata = json.loads(
+            (
+                _grid_dir(four_dimensional, "deep", FOUR_DIMENSIONAL)
+                / "checkpoints"
+                / "checkpoint_metadata.json"
+            ).read_text("utf-8")
+        )
+
+        assert metadata["latent_dimension"] == FOUR_DIMENSIONAL
+        assert metadata["topology_name"] == "deep"
+
+    def test_a_4d_combination_can_win_and_only_it_is_evaluated_on_test(
+        self, four_dimensional: CompletedProtocol
+    ) -> None:
+        winner = four_dimensional.result.selection.winner  # type: ignore[union-attr]
+        measurements = four_dimensional.recorder.test_measurements
+
+        assert winner.latent_dimension == FOUR_DIMENSIONAL
+        assert [m["supervised"] for m in measurements] == [False, True]
+        assert {(m["topology"], m["latent_dimension"]) for m in measurements} == {
+            (winner.topology_name, FOUR_DIMENSIONAL)
+        }
+        results = json.loads(
+            (
+                four_dimensional.directory / "final_evaluation" / "final_evaluation_results.json"
+            ).read_text("utf-8")
+        )
+        assert results["split"] == "test"
+        assert results["latent_dimension"] == FOUR_DIMENSIONAL
+
+    def test_supervised_extension_uses_the_4d_winner(
+        self, four_dimensional: CompletedProtocol
+    ) -> None:
+        winner = four_dimensional.result.selection.winner  # type: ignore[union-attr]
+        generated = yaml.safe_load(
+            (
+                four_dimensional.directory
+                / "generated_configs"
+                / "supervised_selected_configuration.yaml"
+            ).read_text("utf-8")
+        )
+        supervised = [
+            t for t in four_dimensional.recorder.trainers if t.supervised_head is not None
+        ]
+
+        assert generated["model"]["latent_dimension"] == FOUR_DIMENSIONAL
+        assert generated["model"]["topology"]["name"] == winner.topology_name
+        assert len(supervised) == 1
+        assert supervised[0].model.latent_dimension == FOUR_DIMENSIONAL
+        assert supervised[0].supervised_head.latent_dimension == FOUR_DIMENSIONAL
+        comparison = pd.read_csv(
+            four_dimensional.directory / "supervised_extension" / "comparison_with_unsupervised.csv"
+        )
+        assert set(comparison["latent_dimension"]) == {FOUR_DIMENSIONAL}
+
+
+class TestGridSizeFollowsTheConfiguration:
+    def test_progress_and_state_use_the_configured_total(
+        self, base_dir: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        config = make_protocol_config(
+            ["small"], [2, FOUR_DIMENSIONAL, 8], supervised_extension=False
+        )
+        caplog.set_level("INFO")
+
+        result = _run(base_dir, config=config)
+
+        state = load_state(result.protocol_directory)
+        assert state.completed_combinations == [
+            "small/latent_dim_2",
+            "small/latent_dim_4",
+            "small/latent_dim_8",
+        ]
+        assert state.pending_combinations == []
+        assert any("Combination 3/3" in message for message in caplog.messages)
+
+    def test_resume_trains_only_the_missing_4d_combination(
+        self, base_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        recorder = _install_recorder(monkeypatch)
+        real_trainer = single_experiment.VAETrainer
+        config = make_protocol_config(["small"], [2, FOUR_DIMENSIONAL], supervised_extension=False)
+
+        class InterruptingTrainer(real_trainer):  # type: ignore[misc, valid-type]
+            def fit(self, *args: object, **kwargs: object):  # type: ignore[no-untyped-def]
+                if self.model.latent_dimension == FOUR_DIMENSIONAL:
+                    raise KeyboardInterrupt
+                return super().fit(*args, **kwargs)
+
+        with monkeypatch.context() as patch:
+            patch.setattr(single_experiment, "VAETrainer", InterruptingTrainer)
+            with pytest.raises(KeyboardInterrupt):
+                _run(base_dir, config=copy.deepcopy(config))
+        directory = next(base_dir.glob("run_*"))
+        assert load_state(directory).completed_combinations == ["small/latent_dim_2"]
+        trainers_before = len(recorder.trainers)
+
+        run_factorial_protocol(
+            copy.deepcopy(config), resume_dir=directory, splits=make_synthetic_splits()
+        )
+
+        assert len(recorder.trainers) == trainers_before + 1
+        assert recorder.trainers[-1].model.latent_dimension == FOUR_DIMENSIONAL
+        assert list((directory / "grid/small").glob("latent_dim_4_incomplete_*"))
+        assert load_state(directory).completed_combinations == [
+            "small/latent_dim_2",
+            "small/latent_dim_4",
+        ]
+
+    def test_completed_4d_combination_is_not_trained_again(
+        self, base_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        recorder = _install_recorder(monkeypatch)
+        config = make_protocol_config(["small"], [FOUR_DIMENSIONAL], supervised_extension=False)
+        first = _run(base_dir, config=copy.deepcopy(config))
+        state = load_state(first.protocol_directory)
+        state.status = "interrupted"
+        from vae_project.experiments.protocol_state import save_state
+
+        save_state(state, first.protocol_directory)
+        trainers_before = len(recorder.trainers)
+        checkpoint = first.protocol_directory / "grid/small/latent_dim_4/checkpoints/best_model.pt"
+        checkpoint_bytes = checkpoint.read_bytes()
+
+        run_factorial_protocol(
+            config, resume_dir=first.protocol_directory, splits=make_synthetic_splits()
+        )
+
+        assert len(recorder.trainers) == trainers_before
+        assert checkpoint.read_bytes() == checkpoint_bytes
+
+    def test_resume_rejects_a_legacy_grid_run_for_the_4d_grid(self, base_dir: Path) -> None:
+        legacy = make_protocol_config(["small"], [2, 8], supervised_extension=False)
+        first = _run(base_dir, config=copy.deepcopy(legacy))
+        from vae_project.experiments.protocol_state import save_state
+
+        state = load_state(first.protocol_directory)
+        state.status = "interrupted"
+        save_state(state, first.protocol_directory)
+        extended = make_protocol_config(
+            ["small"], [2, FOUR_DIMENSIONAL, 8], supervised_extension=False
+        )
+
+        with pytest.raises(ProtocolStateError, match="configuration differs"):
+            run_factorial_protocol(
+                extended, resume_dir=first.protocol_directory, splits=make_synthetic_splits()
+            )
+        assert not (first.protocol_directory / "grid/small/latent_dim_4").exists()
+
+    def test_legacy_grid_without_4d_still_runs_and_creates_no_4d_directory(
+        self, base_dir: Path
+    ) -> None:
+        config = make_protocol_config(["small"], LEGACY_DIMENSIONS[:2], supervised_extension=False)
+
+        result = _run(base_dir, config=config)
+
+        assert result.status == "completed"
+        assert len(result.records) == 2
+        assert not list((result.protocol_directory / "grid").rglob("latent_dim_4*"))

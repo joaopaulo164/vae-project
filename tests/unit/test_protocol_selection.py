@@ -274,3 +274,35 @@ def test_custom_tie_breaker_list_is_respected(tmp_path: Path) -> None:
 
     assert outcome.winner is not None
     assert outcome.winner.key == "medium/latent_dim_2"
+
+
+def test_four_dimensional_combination_can_win_the_selection(tmp_path: Path) -> None:
+    records = [
+        _record(tmp_path, topology, dimension, total)
+        for topology, dimension, total in [
+            ("small", 2, 130.0),
+            ("small", 4, 110.0),
+            ("medium", 4, 96.0),
+            ("deep", 4, 101.0),
+            ("medium", 8, 98.0),
+        ]
+    ]
+
+    outcome = select_winner(records, SelectionConfig(), tmp_path)
+
+    assert outcome.winner is not None
+    assert outcome.winner.key == "medium/latent_dim_4"
+    assert outcome.winner.latent_dimension == 4
+
+
+def test_four_dimensional_tie_prefers_the_smaller_dimension_after_parameters(
+    tmp_path: Path,
+) -> None:
+    same = {"total": 100.0, "reconstruction": 50.0, "parameters": 1000}
+    records = [
+        _record(tmp_path, "small", 8, **same),
+        _record(tmp_path, "small", 4, **same),
+        _record(tmp_path, "small", 16, **same),
+    ]
+
+    assert _winner_key(records, tmp_path) == "small/latent_dim_4"
