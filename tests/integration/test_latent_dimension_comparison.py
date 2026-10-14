@@ -34,8 +34,7 @@ from vae_project.config.models import (
     TSNEConfig,
 )
 from vae_project.data.splits import DataSplits
-from vae_project.experiments import latent_dimension_comparison as comparison
-from vae_project.experiments import latent_evidence
+from vae_project.experiments import latent_evidence, model_evidence, single_experiment
 from vae_project.experiments.latent_dimension_comparison import (
     LatentDimensionComparisonError,
     run_latent_dimension_comparison,
@@ -352,7 +351,7 @@ class TestFailureHandling:
     def test_training_failure_continues_with_next_dimension(
         self, out_dir: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        real_trainer = comparison.VAETrainer
+        real_trainer = single_experiment.VAETrainer
 
         class FlakyTrainer(real_trainer):  # type: ignore[misc, valid-type]
             def fit(self, *args: object, **kwargs: object):  # type: ignore[no-untyped-def]
@@ -360,7 +359,7 @@ class TestFailureHandling:
                     raise RuntimeError("simulated training failure")
                 return super().fit(*args, **kwargs)
 
-        monkeypatch.setattr(comparison, "VAETrainer", FlakyTrainer)
+        monkeypatch.setattr(single_experiment, "VAETrainer", FlakyTrainer)
         table = run_latent_dimension_comparison(
             _make_config([2, 8, 16]), out_dir, splits=_make_splits()
         )
@@ -373,11 +372,11 @@ class TestFailureHandling:
     def test_all_dimensions_failing_raises(
         self, out_dir: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        class BrokenTrainer(comparison.VAETrainer):  # type: ignore[misc, name-defined]
+        class BrokenTrainer(single_experiment.VAETrainer):  # type: ignore[misc, name-defined]
             def fit(self, *args: object, **kwargs: object):  # type: ignore[no-untyped-def]
                 raise RuntimeError("always fails")
 
-        monkeypatch.setattr(comparison, "VAETrainer", BrokenTrainer)
+        monkeypatch.setattr(single_experiment, "VAETrainer", BrokenTrainer)
         with pytest.raises(LatentDimensionComparisonError):
             run_latent_dimension_comparison(_make_config([2, 8]), out_dir, splits=_make_splits())
 
@@ -429,8 +428,8 @@ class TestBestCheckpointAndIndependence:
     ) -> None:
         trained_models: list[torch.nn.Module] = []
         analyzed_models: list[torch.nn.Module] = []
-        real_trainer = comparison.VAETrainer
-        real_evidence = comparison.generate_latent_evidence
+        real_trainer = single_experiment.VAETrainer
+        real_evidence = model_evidence.generate_latent_evidence
 
         class DegradingTrainer(real_trainer):  # type: ignore[misc, valid-type]
             """Corrupts the final weights so the last epoch is worse than the best."""
@@ -447,8 +446,8 @@ class TestBestCheckpointAndIndependence:
             analyzed_models.append(kwargs["model"])
             return real_evidence(*args, **kwargs)
 
-        monkeypatch.setattr(comparison, "VAETrainer", DegradingTrainer)
-        monkeypatch.setattr(comparison, "generate_latent_evidence", recording_evidence)
+        monkeypatch.setattr(single_experiment, "VAETrainer", DegradingTrainer)
+        monkeypatch.setattr(model_evidence, "generate_latent_evidence", recording_evidence)
         run_latent_dimension_comparison(_make_config([4]), out_dir, splits=_make_splits())
 
         checkpoint = torch.load(
@@ -469,8 +468,8 @@ class TestBestCheckpointAndIndependence:
     ) -> None:
         trainers: list[object] = []
         seeds: list[int] = []
-        real_trainer = comparison.VAETrainer
-        real_seed = comparison.set_global_seed
+        real_trainer = single_experiment.VAETrainer
+        real_seed = single_experiment.set_global_seed
 
         class RecordingTrainer(real_trainer):  # type: ignore[misc, valid-type]
             def __init__(self, *args: object, **kwargs: object) -> None:
@@ -481,8 +480,8 @@ class TestBestCheckpointAndIndependence:
             seeds.append(seed)
             real_seed(seed, *args, **kwargs)
 
-        monkeypatch.setattr(comparison, "VAETrainer", RecordingTrainer)
-        monkeypatch.setattr(comparison, "set_global_seed", recording_seed)
+        monkeypatch.setattr(single_experiment, "VAETrainer", RecordingTrainer)
+        monkeypatch.setattr(single_experiment, "set_global_seed", recording_seed)
         run_latent_dimension_comparison(_make_config([2, 8, 16]), out_dir, splits=_make_splits())
 
         assert seeds == [42, 42, 42]

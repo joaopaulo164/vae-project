@@ -82,3 +82,85 @@ não são resultados científicos. Em execuções reais, `data_origin = real`.
 
 Para `latent_dim_2` não há `pca_explained_variance.csv` nem
 `projection_sample_indices.csv`, pois o espaço latente é desenhado diretamente.
+
+Desde o serviço comum de execução, cada `latent_dim_N/` do `compare-latent-dims`
+também contém `figures/training/`, `figures/reconstructions/` e
+`figures/generated_samples/`, além de `figures/latent_space/`.
+
+## Protocolo Fatorial
+
+Raiz: `artifacts/<dataset>/unsupervised/factorial_protocol/run_YYYYMMDD_HHMMSS_<id>/`.
+Cada execução cria uma raiz nova; nada é sobrescrito.
+
+```
+run_YYYYMMDD_HHMMSS_<id>/
+├── shared/
+│   ├── environment.json
+│   ├── class_distribution.csv
+│   ├── projection_sample_indices.csv
+│   ├── reconstruction_sample_indices.csv
+│   └── generation_seed.json
+├── grid/
+│   ├── small/    latent_dim_2/  latent_dim_8/  latent_dim_16/  latent_dim_32/
+│   ├── medium/   latent_dim_2/  latent_dim_8/  latent_dim_16/  latent_dim_32/
+│   └── deep/     latent_dim_2/  latent_dim_8/  latent_dim_16/  latent_dim_32/
+├── selection/
+│   ├── factorial_comparison.csv
+│   ├── selected_configuration.yaml
+│   └── selection_summary.md
+├── final_evaluation/
+│   ├── figures/{reconstructions,generated_samples,latent_space}/
+│   ├── latent_data/
+│   ├── tables/{final_test_metrics.csv, projection_metrics.csv, pca_explained_variance.csv}
+│   ├── final_evaluation_results.json
+│   ├── run_summary.md
+│   └── artifact_manifest.json
+├── supervised_extension/
+│   ├── training/
+│   ├── final_evaluation/
+│   ├── comparison_with_unsupervised.csv
+│   ├── comparison_summary.md
+│   └── artifact_manifest.json
+├── generated_configs/supervised_selected_configuration.yaml
+├── logs/protocol.log
+├── protocol_config_resolved.yaml
+├── protocol_state.json
+├── protocol_manifest.json
+├── protocol_summary.md
+└── scientific_evidence_index.md
+```
+
+Cada `grid/<topologia>/latent_dim_<N>/` contém `checkpoints/`
+(`best_model.pt`, `checkpoint_metadata.json`), `figures/` (`training/`,
+`reconstructions/`, `generated_samples/`, `latent_space/`), `latent_data/`,
+`tables/` (`training_history.csv/.json`, `projection_metrics.csv`,
+`pca_explained_variance.csv` para N > 2), `config_resolved.yaml`, `metrics.json`,
+`run_summary.md` e `artifact_manifest.json`. Um diretório de combinação
+interrompido é preservado como `<nome>_incomplete_<timestamp>` na retomada.
+
+| Figura | Arquivos (PNG e SVG) |
+|--------|----------------------|
+| Treinamento | `training/training_total_loss`, `training/training_loss_components` |
+| Reconstruções | `reconstructions/reconstruction_comparison` |
+| Amostras geradas | `generated_samples/generated_samples` |
+| Espaço latente 2D | `latent_space/latent_space_direct_2d` |
+| Espaço latente N > 2 | `latent_space/latent_space_{pca,umap,tsne}_Nd`, `latent_space/pca_explained_variance_Nd` |
+
+`selection/factorial_comparison.csv` tem uma linha por combinação, com dataset,
+tipo de experimento, topologia, `hidden_dimensions`, dimensão, seed,
+`parameter_count`, melhor época, losses de validação, durações, caminhos
+(checkpoint, diretório, figuras, projeção, métricas, resumo, manifesto), variância
+explicada do PCA, status e contagem de warnings/errors. Campos não aplicáveis
+ficam vazios.
+
+`protocol_manifest.json` referencia os manifestos locais (não duplica cada
+arquivo interno) e registra protocolo, dataset, identificador, configuração,
+ambiente, arquivos compartilhados, combinações, seleção, avaliação final,
+extensão supervisionada, relatórios, status, tamanhos, hashes, timestamps,
+warnings e errors.
+
+`scientific_evidence_index.md` organiza as evidências por categoria e traz o
+questionário para o pesquisador, sem observações visuais preenchidas.
+Artefatos de testes e smoke tests (diretório `smoke_test`/`synthetic`,
+`data_origin = synthetic`) trazem o aviso "SYNTHETIC DATA: smoke test,
+non-scientific results" nos resumos e nunca são resultados científicos.

@@ -139,7 +139,7 @@ class ArtifactManifest:
         return list(self._entries)
 
 
-def _compute_file_hash(file_path: Path) -> str:
+def compute_file_hash(file_path: Path) -> str:
     """Compute SHA-256 hash of a file.
 
     Args:
@@ -153,6 +153,9 @@ def _compute_file_hash(file_path: Path) -> str:
         for chunk in iter(lambda: file_handle.read(8192), b""):
             hasher.update(chunk)
     return hasher.hexdigest()
+
+
+_compute_file_hash = compute_file_hash
 
 
 def _infer_artifact_type(suffix: str, filename: str) -> str:

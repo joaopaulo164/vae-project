@@ -1,4 +1,4 @@
-﻿"""Environment information collection for reproducibility metadata.
+"""Environment information collection for reproducibility metadata.
 
 Gathers Python, library, OS, hardware, and Git information to enable
 exact reproduction of experiments.
@@ -10,7 +10,7 @@ import logging
 import platform
 import subprocess
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import numpy as np
@@ -35,7 +35,7 @@ def collect_environment_info() -> dict[str, Any]:
     info: dict[str, Any] = {}
 
     # Timestamp
-    info["timestamp_utc"] = datetime.utcnow().isoformat() + "Z"
+    info["timestamp_utc"] = datetime.now(UTC).replace(tzinfo=None).isoformat() + "Z"
 
     # Python
     info["python_version"] = sys.version

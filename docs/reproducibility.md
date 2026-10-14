@@ -104,6 +104,42 @@ Cada execução completa de `compare-latent-dims` grava em
 nunca reutiliza o diretório de outra. Um `run_...` existente é rejeitado, a menos
 que `--overwrite` seja passado explicitamente. Veja [`execution.md`](execution.md).
 
+`run-factorial-protocol` segue a mesma regra e é mais estrito: grava em
+`.../factorial_protocol/run_YYYYMMDD_HHMMSS_<id>/`, `--output-dir` é apenas o
+diretório base e **não existe** opção de sobrescrita. Para continuar uma rodada,
+usa-se `--resume`, que valida os artefatos existentes e nunca sobrescreve arquivos
+válidos.
+
+## Protocolo fatorial: controle de variáveis
+
+Na grade, somente a topologia, suas `hidden_dimensions` e a dimensão latente
+variam. Há um único seed, aplicado de novo antes de cada combinação:
+
+```yaml
+reproducibility:
+  global_seed: 42
+  deterministic_mode: true
+splits:
+  seed: 42
+projections:
+  umap:
+    random_state: 42
+  tsne:
+    random_state: 42
+```
+
+Cada combinação cria modelo, otimizador, scheduler e early stopping novos; os
+pesos nunca são reaproveitados. Os índices de projeção, os índices de reconstrução
+e o seed de geração das amostras são compartilhados (`shared/`) por todas as
+combinações do dataset, de modo que os exemplos de origem são iguais mesmo com
+valores latentes diferentes. A extensão supervisionada usa o mesmo seed e os mesmos
+hiperparâmetros da vencedora e treina um modelo novo.
+
+`protocol_state.json` guarda o hash da configuração; a retomada com uma
+configuração diferente é rejeitada para não misturar resultados incompatíveis.
+A reprodutibilidade bit a bit continua sem garantia entre hardware, CUDA e
+versões de bibliotecas (veja Limitações).
+
 ## Dados sintéticos x experimento real
 
 Os testes e o smoke test usam dados **sintéticos** (tensores aleatórios, sem

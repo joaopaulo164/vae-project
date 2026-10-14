@@ -10,25 +10,27 @@ repos:
       - id: check-merge-conflict
       - id: debug-statements
 
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.4
+  # The tools below run from the project environment (language: system) so that the
+  # versions match requirements-dev.txt and mypy can import torch and numpy.
+  - repo: local
     hooks:
       - id: ruff
-        args: [--fix]
-      - id: ruff-format
+        name: ruff
+        entry: python -m ruff check --fix
+        language: system
+        types: [python]
+        require_serial: true
 
-  - repo: https://github.com/psf/black
-    rev: 24.4.2
-    hooks:
       - id: black
+        name: black
+        entry: python -m black
+        language: system
+        types: [python]
+        require_serial: true
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.10.0
-    hooks:
       - id: mypy
-        args: [--config-file=pyproject.toml]
-        additional_dependencies:
-          - types-PyYAML
-          - types-tqdm
-          - pandas-stubs
+        name: mypy
+        entry: python -m mypy src
+        language: system
+        types: [python]
         pass_filenames: false

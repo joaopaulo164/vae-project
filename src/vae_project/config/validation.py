@@ -6,7 +6,18 @@ that guide the user toward fixing configuration issues.
 
 from __future__ import annotations
 
-from vae_project.config.models import ExperimentConfig
+from vae_project.config.models import (
+    FINAL_EVALUATION_SPLIT,
+    SELECTION_NUMERIC_DIRECTIONS,
+    SELECTION_NUMERIC_METRICS,
+    SELECTION_TEXT_DIRECTIONS,
+    SELECTION_TEXT_METRICS,
+    STANDARD_TOPOLOGIES,
+    SUPERVISED_EXECUTION_MODES,
+    ExperimentConfig,
+    FactorialComparisonConfig,
+    SelectionConfig,
+)
 
 
 def validate_config(config: ExperimentConfig) -> list[str]:
@@ -29,6 +40,7 @@ def validate_config(config: ExperimentConfig) -> list[str]:
     errors.extend(_validate_supervised_component(config))
     errors.extend(_validate_plotting(config))
     errors.extend(_validate_latent_dimension_comparison(config))
+    errors.extend(_validate_factorial_protocol(config))
 
     return errors
 
@@ -86,6 +98,137 @@ def _validate_latent_dimension_comparison(config: ExperimentConfig) -> list[str]
     if not isinstance(comparison.fixed_topology, str) or not comparison.fixed_topology:
         errors.append("latent_dimension_comparison.fixed_topology must be a non-empty string.")
 
+    return errors
+
+
+def _validate_selection_metric(metric: object, direction: object, label: str) -> list[str]:
+    """Validate one (metric, direction) pair used to rank combinations."""
+    if metric in SELECTION_NUMERIC_METRICS:
+        valid_directions: tuple[str, ...] = SELECTION_NUMERIC_DIRECTIONS
+    elif metric in SELECTION_TEXT_METRICS:
+        valid_directions = SELECTION_TEXT_DIRECTIONS
+    else:
+        known = [*SELECTION_NUMERIC_METRICS, *SELECTION_TEXT_METRICS]
+        return [f"{label}: unknown metric {metric!r}. Valid metrics: {known}."]
+    if direction not in valid_directions:
+        return [
+            f"{label}: invalid direction {direction!r} for metric {metric!r}. "
+            f"Valid directions: {list(valid_directions)}."
+        ]
+    return []
+
+
+def _validate_selection(selection: SelectionConfig) -> list[str]:
+    """Validate the winner selection rule."""
+    errors: list[str] = []
+    label = "factorial_comparison.selection"
+    if selection.primary_metric not in SELECTION_NUMERIC_METRICS:
+        errors.append(
+            f"{label}.primary_metric: unknown or non-numeric metric "
+            f"{selection.primary_metric!r}. Valid metrics: {list(SELECTION_NUMERIC_METRICS)}."
+        )
+    elif selection.direction not in SELECTION_NUMERIC_DIRECTIONS:
+        errors.append(
+            f"{label}.direction must be one of {list(SELECTION_NUMERIC_DIRECTIONS)}, "
+            f"got {selection.direction!r}."
+        )
+    if (
+        isinstance(selection.tolerance, bool)
+        or not isinstance(selection.tolerance, (int, float))
+        or selection.tolerance < 0
+    ):
+        errors.append(f"{label}.tolerance must be a number >= 0, got {selection.tolerance!r}.")
+    for position, tie_breaker in enumerate(selection.tie_breakers):
+        errors.extend(
+            _validate_selection_metric(
+                tie_breaker.metric,
+                tie_breaker.direction,
+                f"{label}.tie_breakers[{position}]",
+            )
+        )
+    return errors
+
+
+def _validate_factorial_grid(factorial: FactorialComparisonConfig) -> list[str]:
+    """Validate topologies, dimensions and the resulting combinations."""
+    errors: list[str] = []
+    topologies = factorial.topologies
+    if not isinstance(topologies, list) or not topologies:
+        errors.append(
+            "factorial_comparison.topologies must be a non-empty list, "
+            f"e.g. {list(STANDARD_TOPOLOGIES)}."
+        )
+        topologies = []
+    for name in topologies:
+        if name not in STANDARD_TOPOLOGIES:
+            errors.append(
+                f"factorial_comparison.topologies: unknown topology {name!r}. "
+                f"Valid topologies: {list(STANDARD_TOPOLOGIES)}."
+            )
+    duplicated_topologies = sorted({n for n in topologies if topologies.count(n) > 1})
+    if duplicated_topologies:
+        errors.append(
+            f"factorial_comparison.topologies contains duplicates: {duplicated_topologies}. "
+            "Duplicates would create duplicated (topology, dimension) combinations."
+        )
+
+    dimension_errors = validate_comparison_dimensions(factorial.latent_dimensions)
+    errors.extend(
+        message.replace(
+            "latent_dimension_comparison.dimensions", "factorial_comparison.latent_dimensions"
+        )
+        for message in dimension_errors
+    )
+    return errors
+
+
+def _validate_factorial_protocol(config: ExperimentConfig) -> list[str]:
+    """Validate the factorial protocol blocks.
+
+    The grid and the selection rule are validated only when
+    ``factorial_comparison.enabled`` is true, so that every other command keeps
+    accepting its existing configurations.
+    """
+    errors: list[str] = []
+    factorial = config.factorial_comparison
+    if factorial.enabled:
+        errors.extend(_validate_factorial_grid(factorial))
+        errors.extend(_validate_selection(factorial.selection))
+        if config.supervised_component.enabled:
+            errors.append(
+                "supervised_component.enabled must be false in the factorial protocol: "
+                "the main grid is unsupervised. Use supervised_extension instead."
+            )
+
+    if config.final_evaluation.split != FINAL_EVALUATION_SPLIT:
+        errors.append(
+            f"final_evaluation.split must be {FINAL_EVALUATION_SPLIT!r}, "
+            f"got {config.final_evaluation.split!r}."
+        )
+    if config.final_evaluation.retrain_selected_configuration:
+        errors.append(
+            "final_evaluation.retrain_selected_configuration=true is not supported: the "
+            "final evaluation reuses the best checkpoint of the factorial phase."
+        )
+
+    extension = config.supervised_extension
+    if extension.execution_mode not in SUPERVISED_EXECUTION_MODES:
+        errors.append(
+            f"supervised_extension.execution_mode must be one of "
+            f"{list(SUPERVISED_EXECUTION_MODES)}, got {extension.execution_mode!r}."
+        )
+    if extension.enabled:
+        if extension.classification_loss_weight <= 0:
+            errors.append(
+                "supervised_extension.classification_loss_weight must be > 0 when the "
+                "supervised extension is enabled (no classification configured otherwise)."
+            )
+        if not config.supervised_component.hidden_dimensions:
+            errors.append(
+                "supervised_component.hidden_dimensions must not be empty when the "
+                "supervised extension is enabled: the classification head needs a "
+                "configured architecture."
+            )
     return errors
 
 

@@ -264,8 +264,45 @@ def ensure_dir(path: Path) -> Path:
     return path
 
 
+def run_subdirectories(run_dir: Path) -> dict[str, Path]:
+    """Return the standard subdirectory paths of a run (nothing is created).
+
+    Args:
+        run_dir: Root directory of the run.
+
+    Returns:
+        Dictionary mapping subdirectory names to their Path objects.
+    """
+    run_dir = Path(run_dir)
+    return {
+        "checkpoints": run_dir / "checkpoints",
+        "figures_training": run_dir / "figures" / "training",
+        "figures_reconstructions": run_dir / "figures" / "reconstructions",
+        "figures_generated": run_dir / "figures" / "generated_samples",
+        "figures_latent": run_dir / "figures" / "latent_space",
+        "logs": run_dir / "logs",
+        "tables": run_dir / "tables",
+        "latent_data": run_dir / "latent_data",
+    }
+
+
+def ensure_run_subdirectories(run_dir: Path) -> dict[str, Path]:
+    """Create the standard subdirectories of a run (existing ones are kept).
+
+    Args:
+        run_dir: Root directory of the run.
+
+    Returns:
+        Dictionary mapping subdirectory names to their Path objects.
+    """
+    subdirs = run_subdirectories(run_dir)
+    for subdir_path in subdirs.values():
+        subdir_path.mkdir(parents=True, exist_ok=True)
+    return subdirs
+
+
 def create_run_structure(run_dir: Path) -> dict[str, Path]:
-    """Create the standard subdirectory structure for a run.
+    """Create the standard subdirectory structure for a new run.
 
     Args:
         run_dir: Root directory for this experiment run.
@@ -284,19 +321,5 @@ def create_run_structure(run_dir: Path) -> dict[str, Path]:
             "Wait a moment and retry."
         )
 
-    subdirs = {
-        "checkpoints": run_dir / "checkpoints",
-        "figures_training": run_dir / "figures" / "training",
-        "figures_reconstructions": run_dir / "figures" / "reconstructions",
-        "figures_generated": run_dir / "figures" / "generated_samples",
-        "figures_latent": run_dir / "figures" / "latent_space",
-        "logs": run_dir / "logs",
-        "tables": run_dir / "tables",
-        "latent_data": run_dir / "latent_data",
-    }
-
     run_dir.mkdir(parents=True, exist_ok=False)
-    for subdir_path in subdirs.values():
-        subdir_path.mkdir(parents=True, exist_ok=True)
-
-    return subdirs
+    return ensure_run_subdirectories(run_dir)

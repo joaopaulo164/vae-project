@@ -88,11 +88,52 @@ Cuidados específicos:
 
 ---
 
+## 3.1 Protocolo fatorial: topologia × dimensão
+
+No `run-factorial-protocol`, cada uma das 12 combinações tem figuras de
+treinamento, reconstruções, amostras geradas e espaço latente. Perguntas-guia
+(responda **você**, olhando as figuras; o código não preenche observações visuais):
+
+- Existem clusters visualmente identificáveis?
+- Os rótulos estão separados? Quais classes se sobrepõem?
+- Qual topologia apresenta reconstruções mais nítidas (mesmos exemplos em todas as
+  combinações)?
+- Como a dimensão latente afeta a organização do espaço latente?
+- A combinação com menor validation loss também apresenta a melhor separação
+  visual? (A seleção automática usa só a loss; não use a aparência das projeções
+  para escolher a vencedora.)
+- As amostras geradas do prior são plausíveis?
+
+Cuidados específicos:
+
+- Todos os modelos usam os mesmos exemplos de projeção e de reconstrução
+  (`shared/`), mas os valores latentes são diferentes entre modelos; formas e
+  distâncias não são diretamente comparáveis entre combinações.
+- A dimensão 2 é desenhada diretamente; 8, 16 e 32 são projetadas por PCA, UMAP e
+  t-SNE. Somente o PCA possui variância explicada.
+- A vencedora tem a menor `validation_total_loss`; isso não significa melhor
+  agrupamento. Com um único seed (42), diferenças pequenas podem ser variação de
+  treinamento.
+- O teste (`final_evaluation/`) foi usado apenas na vencedora e não participou da
+  seleção. Não escolha outra combinação com base nele.
+- Combinações com status `partial` ou `failed` têm evidências incompletas; consulte
+  o `run_summary.md` e a coluna de status em `factorial_comparison.csv`.
+
+---
+
 ## 4. Componente Supervisionado (quando habilitado)
+
+No protocolo fatorial, a extensão supervisionada usa a mesma topologia, dimensão,
+seed e hiperparâmetros da vencedora (modelo novo). A `total_loss` supervisionada
+tem composição diferente (inclui a classification loss) e **não** deve ser
+comparada numericamente com a não supervisionada; compare reconstruction loss, KL,
+reconstruções, organização visual, métricas subsidiárias e desempenho
+classificatório (`supervised_extension/comparison_summary.md`).
 
 - A separação visual melhorou em relação ao VAE não supervisionado?
 - O loss de reconstrução foi afetado negativamente?
 - A melhora na separação visual é proporcional ao custo em reconstrução?
+- A supervisão melhora a separação? A supervisão afeta a reconstrução?
 
 ---
 

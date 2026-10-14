@@ -1,4 +1,4 @@
-﻿"""VAE loss functions: reconstruction loss, KL divergence, and total VAE loss.
+"""VAE loss functions: reconstruction loss, KL divergence, and total VAE loss.
 
 The VAE objective is the Evidence Lower BOund (ELBO):
 

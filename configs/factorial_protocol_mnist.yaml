@@ -1,0 +1,110 @@
+# factorial_protocol_mnist.yaml - Main scientific protocol for MNIST.
+#
+# 3 topologies x 4 latent dimensions = 12 unsupervised configurations.
+# The winner (lowest validation total loss) is evaluated once on the test split
+# and then trained again, from scratch, with the supervised extension.
+#
+# Run (PowerShell, single line):
+#   python -m vae_project.cli run-factorial-protocol --config configs/factorial_protocol_mnist.yaml
+#
+# Only the topology, its hidden dimensions and the latent dimension vary in the
+# grid. Everything else below is constant for all combinations.
+
+project:
+  name: vae_project
+  description: "MNIST factorial protocol (topology x latent dimension)"
+  quick_mode: false
+
+dataset:
+  name: mnist
+  download: true
+  num_workers: 0
+
+model:
+  latent_dimension: 16   # Placeholder; overridden by every grid combination
+  topology:
+    name: medium         # Placeholder; overridden by every grid combination
+    hidden_dimensions: [512, 256]
+
+loss:
+  reconstruction_loss_type: bce
+  beta: 1.0
+  reduction: sum
+
+supervised_component:
+  enabled: false              # The grid is unsupervised; see supervised_extension
+  classification_loss_weight: 1.0
+  hidden_dimensions: [128]
+  use_latent_mean: true
+
+training:
+  max_epochs: 50
+  batch_size: 128
+
+early_stopping:
+  enabled: true
+  patience: 10
+
+optimizer:
+  learning_rate: 0.001
+
+runtime:
+  device: auto
+
+reproducibility:
+  global_seed: 42
+  deterministic_mode: true
+
+splits:
+  seed: 42
+
+projections:
+  methods: [pca, umap, tsne]
+  umap:
+    random_state: 42
+  tsne:
+    random_state: 42
+  sampling:
+    enabled: true
+    max_samples: 5000
+    stratified: true
+    seed: 42
+
+protocol:
+  name: mnist_vae_factorial_protocol
+  resume_if_interrupted: true
+  prevent_overwrite: true
+  continue_on_noncritical_evidence_error: true
+
+factorial_comparison:
+  enabled: true
+  topologies: [small, medium, deep]
+  latent_dimensions: [2, 8, 16, 32]
+  generate_full_evidence: true
+  selection:
+    primary_metric: validation_total_loss
+    direction: minimize
+    tolerance: 1.0e-6
+    tie_breakers:
+      - metric: validation_reconstruction_loss
+        direction: minimize
+      - metric: parameter_count
+        direction: minimize
+      - metric: latent_dimension
+        direction: minimize
+      - metric: topology_name
+        direction: ascending
+
+final_evaluation:
+  enabled: true
+  split: test
+  use_selected_configuration: true
+  use_best_checkpoint: true
+  retrain_selected_configuration: false
+
+supervised_extension:
+  enabled: true
+  execution_mode: automatic
+  use_selected_configuration: true
+  classification_loss_weight: 1.0
+  use_latent_mean: true

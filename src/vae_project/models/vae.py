@@ -161,7 +161,8 @@ class VariationalAutoencoder(nn.Module):
         Returns:
             Reconstructed tensor in [0, 1], shape (batch, input_dimension).
         """
-        return self.decoder(latent_sample)
+        decoded: Tensor = self.decoder(latent_sample)
+        return decoded
 
     def forward(self, input_tensor: Tensor) -> VAEOutput:
         """Full VAE forward pass.

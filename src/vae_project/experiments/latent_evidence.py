@@ -266,6 +266,7 @@ def generate_latent_evidence(
     split_name: str = "val",
     run_id: str = "",
     raise_on_failure: bool = False,
+    extra_context: dict[str, object] | None = None,
 ) -> EvidenceResult:
     """Extract ``latent_mean`` and generate figures, tables and metrics.
 
@@ -282,6 +283,9 @@ def generate_latent_evidence(
         run_id: Run identifier stored in the latent representations.
         raise_on_failure: Raise on projection/plot/metric failures instead of
             recording them. Latent extraction failures always raise.
+        extra_context: Constant provenance values (for example ``phase`` or
+            ``selected_configuration``) added to the latent representations,
+            the sample indices and the metrics table.
 
     Returns:
         EvidenceResult describing produced files, metrics and failures.
@@ -296,10 +300,12 @@ def generate_latent_evidence(
     context: dict[str, object] = {
         "dataset": dataset_name,
         "split": split_name,
+        "topology_name": model.topology_name,
         "latent_dimension": latent_dim,
         "seed": seed,
         "experiment_type": experiment_type,
     }
+    context.update(extra_context or {})
 
     model.eval()
     reps = extract_latent_representations(
@@ -312,9 +318,12 @@ def generate_latent_evidence(
         is_quick_mode=is_quick,
         metadata={
             "run_id": run_id,
+            "execution_id": run_id,
+            "topology_name": model.topology_name,
             "seed": seed,
             "experiment_type": experiment_type,
             "latent_source": LATENT_SOURCE,
+            **(extra_context or {}),
         },
     )
     result = EvidenceResult(
@@ -367,6 +376,33 @@ def _direct_2d(
         result.figures["direct"] = paths
 
 
+def projection_sample_positions(labels: np.ndarray, config: ExperimentConfig) -> np.ndarray:
+    """Return the positions of the samples used by PCA, UMAP and t-SNE.
+
+    The selection depends only on the labels and the sampling seed. Every model
+    evaluated on the same split therefore receives exactly the same samples,
+    which is what makes projections of different models comparable. The
+    factorial protocol calls this function to publish the shared indices.
+
+    Args:
+        labels: Integer labels of the analyzed split, in loader order.
+        config: Experiment configuration (projection sampling block).
+
+    Returns:
+        Sorted positions into the split.
+    """
+    sample_cfg = config.projections.sampling
+    max_samples = sample_cfg.max_samples if sample_cfg.enabled else len(labels)
+    placeholder_vectors = np.zeros((len(labels), 1))
+    _, _, selected = stratified_subsample(
+        vectors=placeholder_vectors,
+        labels=labels,
+        max_samples=max_samples,
+        seed=sample_cfg.seed,
+    )
+    return selected
+
+
 def _projections(
     result: EvidenceResult,
     reps: LatentRepresentations,
@@ -378,17 +414,12 @@ def _projections(
 ) -> None:
     """Run PCA/UMAP/t-SNE on a stratified sample of ``latent_mean``."""
     proj_config = config.projections
-    sample_cfg = proj_config.sampling
-    max_samples = sample_cfg.max_samples if sample_cfg.enabled else len(reps.labels)
 
     # The selection depends only on labels and seed, so every latent dimension
     # of the same split receives exactly the same sample indices.
-    sample_vecs, sample_labels, selected = stratified_subsample(
-        vectors=reps.latent_means,
-        labels=reps.labels,
-        max_samples=max_samples,
-        seed=sample_cfg.seed,
-    )
+    selected = projection_sample_positions(reps.labels, config)
+    sample_vecs = reps.latent_means[selected]
+    sample_labels = reps.labels[selected]
     result.n_projection_samples = len(sample_labels)
 
     indices_df = pd.DataFrame(
@@ -464,10 +495,7 @@ def _projections(
                 lambda: pca_result.save_explained_variance_csv(
                     variance_path,
                     extra_columns={
-                        "dataset": context["dataset"],
-                        "split": context["split"],
-                        "seed": context["seed"],
-                        "experiment_type": context["experiment_type"],
+                        key: value for key, value in context.items() if key != "latent_dimension"
                     },
                 ),
                 raise_on_failure,

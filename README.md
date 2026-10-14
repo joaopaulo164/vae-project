@@ -7,6 +7,11 @@ Um projeto científico completo, reprodutível e executável para estudo de
 > interpretados visualmente antes de recorrer a métricas quantitativas.
 > Consulte a seção [Análise Visual e Métricas Subsidiárias](#análise-visual-e-métricas-subsidiárias).
 
+> **Protocolo científico principal:** `run-factorial-protocol` compara
+> 3 topologias × 4 dimensões latentes (12 configurações por dataset) e
+> automatiza seleção, avaliação final e extensão supervisionada. Veja
+> [Protocolo Fatorial Principal](#protocolo-fatorial-principal).
+
 ---
 
 ## Índice
@@ -19,19 +24,21 @@ Um projeto científico completo, reprodutível e executável para estudo de
 6. [Pré-requisitos](#pré-requisitos)
 7. [Instalação no Windows](#instalação-no-windows)
 8. [Execução Rápida (Smoke Test)](#execução-rápida-smoke-test)
-9. [Pipelines de Experimento](#pipelines-de-experimento)
-10. [Seleção de Topologia](#seleção-de-topologia)
-11. [Comparação de Dimensões Latentes](#comparação-de-dimensões-latentes)
-12. [Componente Supervisionado Opcional](#componente-supervisionado-opcional)
-13. [Testes Automatizados](#testes-automatizados)
-14. [Qualidade de Código](#qualidade-de-código)
-15. [Localização dos Artefatos](#localização-dos-artefatos)
-16. [Análise Visual e Métricas Subsidiárias](#análise-visual-e-métricas-subsidiárias)
-17. [Limitações de PCA, UMAP e t-SNE](#limitações-de-pca-umap-e-t-sne)
-18. [Reprodutibilidade](#reprodutibilidade)
-19. [Mapa da Documentação](#mapa-da-documentação)
-20. [Solução de Problemas](#solução-de-problemas)
-21. [Licença e Citação](#licença-e-citação)
+9. [Classificação dos Pipelines](#classificação-dos-pipelines)
+10. [Execução Individual](#execução-individual)
+11. [Seleção de Topologia](#seleção-de-topologia)
+12. [Comparação de Dimensões Latentes](#comparação-de-dimensões-latentes)
+13. [Protocolo Fatorial Principal](#protocolo-fatorial-principal)
+14. [Componente Supervisionado Opcional](#componente-supervisionado-opcional)
+15. [Testes Automatizados](#testes-automatizados)
+16. [Qualidade de Código](#qualidade-de-código)
+17. [Localização dos Artefatos](#localização-dos-artefatos)
+18. [Análise Visual e Métricas Subsidiárias](#análise-visual-e-métricas-subsidiárias)
+19. [Limitações de PCA, UMAP e t-SNE](#limitações-de-pca-umap-e-t-sne)
+20. [Reprodutibilidade](#reprodutibilidade)
+21. [Mapa da Documentação](#mapa-da-documentação)
+22. [Solução de Problemas](#solução-de-problemas)
+23. [Licença e Citação](#licença-e-citação)
 
 ---
 
@@ -53,6 +60,7 @@ latente e como essas estruturas podem ser visualizadas e analisadas.
 
 | Objetivo | Módulo principal | Configuração | Artefatos |
 |---|---|---|---|
+| Comparar 3 topologias × 4 dimensões latentes (protocolo principal) | [`experiments/factorial_protocol.py`](src/vae_project/experiments/factorial_protocol.py) | [`factorial_protocol_mnist.yaml`](configs/factorial_protocol_mnist.yaml) | `factorial_protocol/run_*/` |
 | Treinar VAE com diferentes topologias | [`experiments/topology_selection.py`](src/vae_project/experiments/topology_selection.py) | [`topology_selection_mnist.yaml`](configs/topology_selection_mnist.yaml) | `topology_*/training_history.csv` |
 | Selecionar melhor modelo por validation loss | [`training/early_stopping.py`](src/vae_project/training/early_stopping.py) | `early_stopping.patience` | `checkpoints/best_model.pt` |
 | Analisar espaço latente 2D diretamente | [`visualization/latent_plots.py`](src/vae_project/visualization/latent_plots.py) | `model.latent_dimension: 2` | `latent_space_direct_2d.png` |
@@ -136,7 +144,9 @@ Consulte [`docs/architecture.md`](docs/architecture.md) para descrição complet
 │   ├── latent_dimensions_mnist.yaml
 │   ├── latent_dimensions_fashion_mnist.yaml
 │   ├── mnist_supervised_optional.yaml
-│   └── fashion_mnist_supervised_optional.yaml
+│   ├── fashion_mnist_supervised_optional.yaml
+│   ├── factorial_protocol_mnist.yaml
+│   └── factorial_protocol_fashion_mnist.yaml
 ├── docs/                         (documentação detalhada)
 ├── src/
 │   └── vae_project/
@@ -148,7 +158,8 @@ Consulte [`docs/architecture.md`](docs/architecture.md) para descrição complet
 │       ├── evaluation/           (extração latente, métricas)
 │       ├── visualization/        (gráficos de treino, reconstrução, espaço latente)
 │       ├── projections/          (PCA, UMAP, t-SNE, subsampling)
-│       ├── experiments/          (runner, seleção de topologia, comparação de dims)
+│       ├── experiments/          (serviço de execução individual, seleção de topologia,
+│       │                          comparação de dims, protocolo fatorial)
 │       ├── reporting/            (manifesto, sumário, relatório)
 │       └── utils/                (device, paths, logging, timing, reproducibility)
 ├── tests/
@@ -159,7 +170,9 @@ Consulte [`docs/architecture.md`](docs/architecture.md) para descrição complet
 │   ├── setup_windows.ps1
 │   ├── run_smoke_test.ps1
 │   ├── run_mnist_pipeline.ps1
-│   └── run_fashion_mnist_pipeline.ps1
+│   ├── run_fashion_mnist_pipeline.ps1
+│   ├── run_factorial_protocol_mnist.ps1
+│   └── run_factorial_protocol_fashion_mnist.ps1
 ├── data/                         (.gitkeep — datasets baixados em runtime)
 └── artifacts/                    (.gitkeep — artefatos gerados em runtime)
 ```
@@ -256,26 +269,42 @@ python -m pytest tests/ -m "unit or integration" -v
 
 ---
 
-## Pipelines de Experimento
+## Classificação dos Pipelines
 
-### MNIST (Experimento Principal — não supervisionado)
+| # | Etapa | Comando | Papel |
+|---|-------|---------|-------|
+| 1 | Execução individual | `run-pipeline` | Serviço técnico: uma topologia, uma dimensão, um modo; gera o conjunto completo de evidências |
+| 2 | Seleção especializada de topologias | `select-topology` | Compara topologias para **uma dimensão fixa**; análise isolada |
+| 3 | Comparação especializada de dimensões | `compare-latent-dims` | Compara dimensões para **uma topologia fixa**; análise isolada |
+| 4 | **Protocolo fatorial principal** | `run-factorial-protocol` | **Protocolo científico principal**: 3 topologias × 4 dimensões, seleção, avaliação final e extensão supervisionada |
+| 5 | Avaliação final | (fase do protocolo) | Avalia **somente a vencedora** no conjunto de teste, uma única vez |
+| 6 | Extensão supervisionada | (fase do protocolo) | Treina um modelo novo com a mesma topologia e dimensão vencedoras |
+
+Todos os comandos usam o mesmo serviço Python
+(`execute_single_experiment`, em
+[`experiments/single_experiment.py`](src/vae_project/experiments/single_experiment.py)).
+O protocolo fatorial **não** invoca outros comandos de CLI por subprocesso.
+
+---
+
+## Execução Individual
+
+`run-pipeline` executa **uma única configuração** (uma topologia, uma dimensão
+latente, supervisionada ou não) e gera treinamento, reconstruções, amostras
+geradas, espaço latente, tabelas, manifesto e resumo. Ele deixou de ser descrito
+como o experimento científico principal: é o serviço técnico reutilizado pelos
+demais fluxos.
 
 ```powershell
-# Pipeline completo
 python -m vae_project.cli run-pipeline --config configs/mnist_unsupervised.yaml
 
-# Via script
-.\scripts\run_mnist_pipeline.ps1
-```
-
-### Fashion-MNIST
-
-```powershell
 python -m vae_project.cli run-pipeline --config configs/fashion_mnist_unsupervised.yaml
-
-# Via script
-.\scripts\run_fashion_mnist_pipeline.ps1
 ```
+
+Também há os scripts `.\scripts\run_mnist_pipeline.ps1` e
+`.\scripts\run_fashion_mnist_pipeline.ps1`. Para o protocolo principal, use
+`.\scripts\run_factorial_protocol_mnist.ps1` e
+`.\scripts\run_factorial_protocol_fashion_mnist.ps1`.
 
 **Artefatos gerados:**
 - `artifacts/mnist/unsupervised/latent_16/run_YYYYMMDD_HHMMSS_/`
@@ -325,10 +354,13 @@ python -m vae_project.cli compare-latent-dims --config configs/latent_dimensions
 A lista de dimensões fica **somente** em `latent_dimension_comparison.dimensions`.
 O campo `model.latent_dimension` continua sendo um único inteiro.
 
-Para cada dimensão, o comando executa o fluxo completo: treinamento, validação,
-seleção do melhor checkpoint (menor `val_total_loss`), recarga desse checkpoint,
-extração do `latent_mean`, figuras, métricas subsidiárias, tabelas, manifesto e
-resumo da execução. Ao final, consolida todas as dimensões.
+Para cada dimensão, o comando executa o fluxo completo do serviço comum:
+treinamento, validação, seleção do melhor checkpoint (menor `val_total_loss`),
+recarga desse checkpoint, curvas de treinamento, reconstruções, amostras geradas,
+extração do `latent_mean`, figuras do espaço latente, métricas subsidiárias,
+tabelas, manifesto e resumo da execução. Ao final, consolida todas as dimensões.
+Este comando é uma análise especializada (topologia fixa); o protocolo científico
+integral é o [`run-factorial-protocol`](#protocolo-fatorial-principal).
 
 | Dimensão | Visualização gerada |
 |----------|---------------------|
@@ -354,6 +386,87 @@ Pontos importantes:
 `latent_dimension_comparison_summary.md`, mais um diretório `latent_dim_N/` por
 dimensão. Veja [Localização dos Artefatos](#localização-dos-artefatos) e
 [`docs/experimentation.md`](docs/experimentation.md).
+
+---
+
+## Protocolo Fatorial Principal
+
+`run-factorial-protocol` é o **protocolo científico principal**. Ele automatiza
+todo o fluxo:
+
+```
+small, medium, deep  ×  2D, 8D, 16D, 32D
+        ↓
+12 configurações não supervisionadas por dataset
+        ↓
+seleção da menor validation total loss
+        ↓
+avaliação no teste somente da combinação vencedora
+        ↓
+extensão supervisionada (mesma topologia e dimensão, modelo novo)
+        ↓
+avaliação da extensão no teste e comparação entre os modos
+        ↓
+relatório, índice de evidências e manifesto global
+```
+
+Comandos (PowerShell, uma linha):
+
+```powershell
+python -m vae_project.cli run-factorial-protocol --config configs/factorial_protocol_mnist.yaml
+
+python -m vae_project.cli run-factorial-protocol --config configs/factorial_protocol_fashion_mnist.yaml
+```
+
+Retomada de uma rodada interrompida (use o diretório `run_...` da rodada):
+
+```powershell
+python -m vae_project.cli run-factorial-protocol --config configs/factorial_protocol_mnist.yaml --resume artifacts/mnist/unsupervised/factorial_protocol/run_YYYYMMDD_HHMMSS_identificador
+```
+
+Pontos principais:
+
+- **3 topologias × 4 dimensões = 12 configurações por dataset**, ou seja,
+  **24 treinamentos de grade** nos dois datasets (MNIST e Fashion-MNIST), mais um
+  treinamento supervisionado por dataset.
+- Cada combinação cria um VAE novo, com otimizador, scheduler e early stopping
+  novos e o seed reaplicado; nenhum peso é reaproveitado.
+- Somente topologia, `hidden_dimensions` e dimensão latente variam. Há **um único
+  seed** (`global_seed: 42`; divisões e `random_state` das projeções também 42).
+- A grade é **não supervisionada**: os rótulos só colorem figuras e alimentam
+  métricas subsidiárias depois do treino.
+- A seleção usa **somente a validação**: menor `validation_total_loss`, com
+  desempates determinísticos (reconstruction loss, número de parâmetros, dimensão
+  latente, nome da topologia). Execuções com falha, incompletas, sem checkpoint
+  ou com valores não finitos são excluídas.
+- **Somente a vencedora** é avaliada no teste, **uma vez**, com o melhor
+  checkpoint (sem retreinar). O teste não altera topologia, dimensão,
+  hiperparâmetros, época ou decisão de seleção.
+- A **extensão supervisionada** treina um modelo novo com a mesma configuração
+  estrutural e de treino; só mudam a cabeça classificadora, a classification loss
+  e o tipo do experimento. Com `execution_mode: manual` ela não treina: apenas
+  gera `generated_configs/supervised_selected_configuration.yaml` e informa o
+  comando de execução manual.
+- A `total_loss` supervisionada **não** é comparável à não supervisionada (a
+  composição difere); a comparação é feita por reconstrução, KL, figuras,
+  métricas subsidiárias e desempenho classificatório.
+- **Retomada** (`--resume`): valida hash da configuração, dataset e artefatos
+  reais (status, checkpoint, métricas, resumo, manifesto, evidências mínimas). Um
+  diretório existente não é suficiente para considerar a combinação concluída.
+- **Prevenção de sobrescrita:** cada execução cria um `run_YYYYMMDD_HHMMSS_<id>/`
+  novo e exclusivo; `--output-dir` é o diretório *base* e não habilita
+  sobrescrita (o protocolo não possui `--overwrite`).
+- **Duração:** em CPU a rodada é muito longa (12 treinamentos completos, mais
+  UMAP e t-SNE para as dimensões 8, 16 e 32, mais o treinamento supervisionado).
+  CUDA é opcional (`runtime.device: auto`).
+- Somente o PCA possui variância explicada. A análise visual é a evidência
+  principal; as métricas são subsidiárias.
+- Resultados de testes e de smoke tests usam dados **sintéticos**, ficam em
+  diretórios `smoke_test`/`synthetic` e **não** são resultados científicos.
+
+Detalhes: [`docs/experimentation.md`](docs/experimentation.md),
+[`docs/configuration.md`](docs/configuration.md) e
+[`docs/execution.md`](docs/execution.md).
 
 ---
 
@@ -466,7 +579,7 @@ artifacts/mnist/unsupervised/latent_dimension_comparison/
     ├── latent_dim_16/
     └── latent_dim_32/
         ├── checkpoints/best_model.pt
-        ├── figures/latent_space/
+        ├── figures/{training,reconstructions,generated_samples,latent_space}/
         ├── latent_data/
         ├── tables/
         ├── logs/experiment.log
@@ -475,6 +588,14 @@ artifacts/mnist/unsupervised/latent_dimension_comparison/
         ├── run_summary.md
         └── artifact_manifest.json
 ```
+
+O protocolo fatorial grava em
+`artifacts/<dataset>/unsupervised/factorial_protocol/run_YYYYMMDD_HHMMSS_<id>/`,
+com `shared/`, `grid/<topologia>/latent_dim_<N>/`, `selection/`,
+`final_evaluation/`, `supervised_extension/`, `generated_configs/`,
+`protocol_state.json`, `protocol_manifest.json`, `protocol_summary.md` e
+`scientific_evidence_index.md`. A estrutura completa está em
+[`docs/evidence_catalog.md`](docs/evidence_catalog.md).
 
 Reexecutar o comando **não** sobrescreve execuções anteriores. `--output-dir` é
 o diretório *base* (a execução cria o `run_...` dentro dele); apontá-lo para um
@@ -494,8 +615,10 @@ científicos. A comparação científica usa somente MNIST e Fashion-MNIST.
 
 Convenção de idioma: a documentação (README e `docs/`) é em **português**;
 código, identificadores, docstrings, logs e mensagens técnicas são em
-**inglês**; `run_summary.md` e `latent_dimension_comparison_summary.md`
-(gerados pelo código) são em **inglês**.
+**inglês**; os relatórios gerados pelo código (`run_summary.md`,
+`latent_dimension_comparison_summary.md`, `selection_summary.md`,
+`protocol_summary.md`, `comparison_summary.md` e `scientific_evidence_index.md`)
+são em **inglês**.
 
 ---
 

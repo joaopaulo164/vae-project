@@ -88,4 +88,76 @@ latent_dimension_comparison:
 Validação: lista vazia, valores menores que 2, duplicatas e valores não inteiros
 são rejeitados, assim como `model.latent_dimension` com uma lista.
 
+### Protocolo fatorial
+
+`configs/factorial_protocol_mnist.yaml` e
+`configs/factorial_protocol_fashion_mnist.yaml` usam o mesmo carregador e a
+mesma validação dos demais arquivos (herdam os padrões e só declaram as
+diferenças). Os blocos novos são:
+
+```yaml
+protocol:
+  name: mnist_vae_factorial_protocol
+  resume_if_interrupted: true               # permite --resume
+  prevent_overwrite: true                   # cada rodada cria um run_... exclusivo
+  continue_on_noncritical_evidence_error: true
+
+factorial_comparison:
+  enabled: true
+  topologies: [small, medium, deep]
+  latent_dimensions: [2, 8, 16, 32]
+  generate_full_evidence: true
+  selection:
+    primary_metric: validation_total_loss
+    direction: minimize
+    tolerance: 1.0e-6
+    tie_breakers:
+      - metric: validation_reconstruction_loss
+        direction: minimize
+      - metric: parameter_count
+        direction: minimize
+      - metric: latent_dimension
+        direction: minimize
+      - metric: topology_name
+        direction: ascending
+
+final_evaluation:
+  enabled: true
+  split: test                               # qualquer outro valor é rejeitado
+  use_selected_configuration: true
+  use_best_checkpoint: true
+  retrain_selected_configuration: false
+
+supervised_extension:
+  enabled: true
+  execution_mode: automatic                 # ou manual (com enabled: false)
+  use_selected_configuration: true
+  classification_loss_weight: 1.0
+  use_latent_mean: true
+```
+
+Os campos `model.latent_dimension` e `model.topology` do arquivo do protocolo são
+apenas valores iniciais: cada combinação da grade os substitui. As topologias
+`small`, `medium` e `deep` têm as `hidden_dimensions` descritas em
+[`architecture.md`](architecture.md). A configuração mantém
+`supervised_component.enabled: false` para a grade; a extensão supervisionada
+deriva sua própria configuração a partir da vencedora.
+
+Validações do protocolo (a configuração é rejeitada com mensagem explicativa):
+
+- lista de topologias vazia, topologia desconhecida ou duplicada;
+- lista de dimensões vazia, duplicada, menor que 2 ou com valores não inteiros;
+- `primary_metric` desconhecida, `direction` inválida, `tolerance` negativa;
+- critério de desempate desconhecido ou com direção inválida;
+- `supervised_component.enabled: true` na grade (a grade é não supervisionada);
+- `final_evaluation.split` diferente de `test` e
+  `retrain_selected_configuration: true` (não suportado);
+- `execution_mode` desconhecido, ou extensão supervisionada sem classificação
+  configurada (peso da classification loss não positivo ou
+  `supervised_component.hidden_dimensions` vazio);
+- combinações duplicadas (topologias repetidas).
+
+O hash da configuração (`protocol_state.json`) detecta mudanças entre a execução
+original e a retomada.
+
 Veja configs/base.yaml para todos os valores padrão documentados.

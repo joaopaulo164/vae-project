@@ -1,4 +1,4 @@
-# Testes Automatizados
+﻿# Testes Automatizados
 
 Todos os testes usam dados sintéticos: sem downloads e sem GPU.
 
@@ -21,8 +21,23 @@ python -m pytest -m unit
 # Apenas a comparação de dimensões latentes
 python -m pytest tests/integration/test_latent_dimension_comparison.py
 
+# Apenas o protocolo fatorial (inclui execuções sintéticas de treinamento; leva alguns minutos em CPU)
+python -m pytest tests/integration/test_factorial_protocol.py tests/unit/test_factorial_protocol_config.py tests/unit/test_protocol_selection.py
+
 # Com cobertura
 python -m pytest --cov=vae_project --cov-report=term-missing
+```
+
+## Verificações de qualidade
+
+Os hooks de `ruff`, `black` e `mypy` em `.pre-commit-config.yaml` são locais (`language: system`) e usam as ferramentas instaladas no ambiente do projeto. Assim as versões coincidem com `requirements-dev.txt` e o `mypy` consegue importar `torch` e `numpy`.
+
+```powershell
+python -m pre_commit run --all-files
+python -m ruff check .
+python -m black --check .
+python -m mypy src
+python -m bandit -r src
 ```
 
 ## Arquivos de Teste
@@ -43,6 +58,11 @@ python -m pytest --cov=vae_project --cov-report=term-missing
 | integration/test_training_pipeline.py | Loop de treinamento completo e retomada via `resume_from_checkpoint` |
 | integration/test_evaluation_pipeline.py | Extração latente, PCA, manifesto |
 | integration/test_latent_dimension_comparison.py | Fluxo completo de `compare-latent-dims` (veja abaixo) |
+| integration/test_factorial_protocol.py | Fluxo completo de `run-factorial-protocol` com grade reduzida e dados sintéticos (veja abaixo) |
+| integration/protocol_support.py | Auxiliares dos testes: dublê de UMAP, configuração e divisões sintéticas |
+| unit/test_factorial_protocol_config.py | Grade, validação da configuração do protocolo, estado, hash e validação da retomada |
+| unit/test_protocol_selection.py | Seleção da vencedora, desempates, exclusões, tabela fatorial, `selected_configuration.yaml` |
+| unit/test_training_plots.py | Marcadores de melhor época e de early stopping nas curvas de treinamento |
 | integration/test_smoke_cli.py | CLI smoke test e validate-config |
 
 ## Comparação de dimensões latentes
@@ -78,6 +98,37 @@ dublês existem apenas nos testes. O arquivo verifica:
   na CLI;
 - rotulagem de dados sintéticos: diretório com `smoke_test`/`synthetic`, aviso nos
   resumos, `data_origin` no CSV, em `metrics.json` e no manifesto.
+
+## Protocolo fatorial
+
+`integration/test_factorial_protocol.py` executa o protocolo com **dados sintéticos
+pequenos** (divisões injetadas; nenhum dataset é baixado, nem MNIST nem
+Fashion-MNIST são treinados) e uma grade reduzida (`small`/`deep` × 2D/8D), em CPU.
+O UMAP é substituído por um dublê de teste na maioria dos casos; há ao menos um
+teste (`test_real_pca_umap_tsne_smoke`) com as implementações reais de PCA, UMAP e
+t-SNE em amostra pequena. O arquivo verifica:
+
+- geração da grade e ausência de combinações duplicadas; topologias, dimensões e
+  seed único corretos;
+- modelo independente por combinação e componente supervisionado desligado na grade;
+- uso do melhor checkpoint;
+- as quatro categorias de figuras (treinamento, reconstruções, amostras geradas,
+  espaço latente), gráfico direto em 2D sem PCA/UMAP/t-SNE e PCA/UMAP/t-SNE com
+  variância explicada nas dimensões maiores;
+- representações latentes, índices compartilhados e seed de geração;
+- tabela fatorial, seleção pela menor validation loss e desempates;
+- exclusão de execuções com falha e seleção sem uso do teste;
+- teste apenas da vencedora (nenhuma das demais é avaliada);
+- configuração supervisionada, mesma topologia e dimensão, treinamento independente
+  e comparação entre os modos;
+- estado, retomada, hash incompatível, prevenção de sobrescrita e modo manual;
+- manifestos e resumos locais e globais;
+- falha parcial de projeção (`partial`) e falha de uma combinação;
+- chamada do serviço pela CLI (`run-factorial-protocol`).
+
+Esses testes validam existência, tamanho, extensão, associação à topologia e à
+dimensão e registro no manifesto. **Não** afirmam validade científica das figuras
+sintéticas. Os artefatos ficam em diretórios `synthetic_smoke_test`.
 
 Os testes de configuração (`unit/test_config.py`) também cobrem os dois trechos que
 antes eram `pass` em `validation.py` (veja [`configuration.md`](configuration.md)).

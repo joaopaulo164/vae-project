@@ -14,11 +14,51 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pandas as pd
+from matplotlib.axes import Axes
 
 from vae_project.config.models import PlottingConfig
 from vae_project.visualization.plot_settings import save_figure
 
 logger = logging.getLogger(__name__)
+
+
+def _mark_best_and_final_epochs(axes: list[Axes], history_df: pd.DataFrame) -> None:
+    """Draw the best-epoch and the last-epoch markers on every axis.
+
+    ``is_best_epoch`` is true for every epoch that improved the validation loss, so
+    the best epoch is the last flagged row. When training ended after a later epoch
+    (early stopping), the last trained epoch is marked as well.
+
+    Args:
+        axes: Axes that share the epoch axis.
+        history_df: Training history with ``epoch`` and ``is_best_epoch`` columns.
+    """
+    if history_df.empty:
+        return
+    best_epoch: int | None = None
+    if "is_best_epoch" in history_df.columns:
+        flagged = history_df[history_df["is_best_epoch"].astype(bool)]
+        if not flagged.empty:
+            best_epoch = int(flagged["epoch"].iloc[-1])
+    last_epoch = int(history_df["epoch"].iloc[-1])
+
+    for axis in axes:
+        if best_epoch is not None:
+            axis.axvline(
+                x=best_epoch,
+                color="gray",
+                linestyle=":",
+                alpha=0.7,
+                label=f"Best epoch ({best_epoch})",
+            )
+        if best_epoch is not None and last_epoch > best_epoch:
+            axis.axvline(
+                x=last_epoch,
+                color="firebrick",
+                linestyle="-.",
+                alpha=0.5,
+                label=f"Early stopping / last epoch ({last_epoch})",
+            )
 
 
 def plot_training_total_loss(
@@ -60,18 +100,7 @@ def plot_training_total_loss(
         linestyle="--",
     )
 
-    # Mark best epoch
-    if "is_best_epoch" in history_df.columns:
-        best_rows = history_df[history_df["is_best_epoch"] == True]  # noqa: E712
-        if not best_rows.empty:
-            best_row = best_rows.iloc[0]
-            axis.axvline(
-                x=best_row["epoch"],
-                color="gray",
-                linestyle=":",
-                alpha=0.7,
-                label=f"Best epoch ({int(best_row['epoch'])})",
-            )
+    _mark_best_and_final_epochs([axis], history_df)
 
     axis.set_xlabel("Epoch")
     axis.set_ylabel("Loss")
@@ -135,7 +164,6 @@ def plot_training_loss_components(
     axes[0].set_xlabel("Epoch")
     axes[0].set_ylabel("Loss")
     axes[0].set_title("Reconstruction Loss")
-    axes[0].legend()
 
     # Panel 2: KL divergence
     axes[1].plot(
@@ -154,7 +182,6 @@ def plot_training_loss_components(
     axes[1].set_xlabel("Epoch")
     axes[1].set_ylabel("KL Divergence")
     axes[1].set_title("KL Divergence Loss")
-    axes[1].legend()
 
     # Panel 3: Classification loss (if applicable)
     if has_classification:
@@ -174,7 +201,10 @@ def plot_training_loss_components(
         axes[2].set_xlabel("Epoch")
         axes[2].set_ylabel("Classification Loss")
         axes[2].set_title("Classification Loss")
-        axes[2].legend()
+
+    _mark_best_and_final_epochs(list(axes), history_df)
+    for panel in axes:
+        panel.legend()
 
     fig.tight_layout()
     output_path = Path(output_dir) / "training_loss_components"

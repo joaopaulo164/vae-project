@@ -48,6 +48,31 @@ def _get_fixed_sample_indices(
     return list(rng.choice(dataset_size, size=n_select, replace=False))
 
 
+def _collect_images_by_position(
+    data_loader: DataLoader,  # type: ignore[type-arg]
+    positions: list[int],
+    device: torch.device,
+) -> tuple[torch.Tensor, list[int]]:
+    """Return the images (and labels) at fixed positions of a loader's dataset.
+
+    Args:
+        data_loader: Loader whose dataset is indexed.
+        positions: Positions in the dataset, in display order.
+        device: Device receiving the stacked images.
+
+    Returns:
+        Tuple ``(images, labels)`` ordered like ``positions``.
+    """
+    dataset = data_loader.dataset
+    images: list[torch.Tensor] = []
+    labels: list[int] = []
+    for position in positions:
+        image, label = dataset[position]
+        images.append(image.unsqueeze(0))
+        labels.append(int(label))
+    return torch.cat(images, dim=0).to(device), labels
+
+
 @torch.no_grad()
 def plot_reconstruction_comparison(
     model: VariationalAutoencoder,
@@ -60,6 +85,8 @@ def plot_reconstruction_comparison(
     class_names: list[str] | None = None,
     is_quick_mode: bool = False,
     seed: int = 42,
+    sample_indices: list[int] | None = None,
+    title_suffix: str = "",
 ) -> list[Path]:
     """Generate a grid comparing original images with their reconstructions.
 
@@ -73,7 +100,12 @@ def plot_reconstruction_comparison(
         split_name: Split name ('train', 'val', 'test').
         class_names: Optional list of class names for labeling.
         is_quick_mode: Whether to add quick-mode warning.
-        seed: Seed for reproducible sample selection.
+        seed: Seed for reproducible sample selection when ``sample_indices``
+            is not given.
+        sample_indices: Fixed positions in the split to reconstruct. Sharing
+            them across models makes the figures directly comparable. When
+            None, the first images of the loader are used.
+        title_suffix: Extra text appended to the title (topology, dimension).
 
     Returns:
         List of saved figure paths.
@@ -83,24 +115,25 @@ def plot_reconstruction_comparison(
     n_cols = config.reconstruction_grid_cols
     num_samples = n_cols  # One row of originals, one row of reconstructions
 
-    # Collect samples reproducibly
-    rng = np.random.default_rng(seed)
-    dataset_size = len(data_loader.dataset)  # type: ignore[arg-type]
-    rng.choice(dataset_size, size=min(num_samples, dataset_size), replace=False)
+    if sample_indices is not None:
+        images_tensor, labels_list = _collect_images_by_position(
+            data_loader, list(sample_indices[:num_samples]), device
+        )
+        num_samples = len(labels_list)
+    else:
+        collected_images: list[torch.Tensor] = []
+        collected_labels: list[int] = []
 
-    collected_images: list[torch.Tensor] = []
-    collected_labels: list[int] = []
+        for batch_images, batch_labels in data_loader:
+            batch_images = batch_images.to(device)
+            for img, lbl in zip(batch_images, batch_labels, strict=True):
+                collected_images.append(img.unsqueeze(0))
+                collected_labels.append(int(lbl))
+            if len(collected_images) >= num_samples:
+                break
 
-    for batch_images, batch_labels in data_loader:
-        batch_images = batch_images.to(device)
-        for img, lbl in zip(batch_images, batch_labels, strict=True):
-            collected_images.append(img.unsqueeze(0))
-            collected_labels.append(int(lbl))
-        if len(collected_images) >= num_samples:
-            break
-
-    images_tensor = torch.cat(collected_images[:num_samples], dim=0)
-    labels_list = collected_labels[:num_samples]
+        images_tensor = torch.cat(collected_images[:num_samples], dim=0)
+        labels_list = collected_labels[:num_samples]
 
     vae_output = model(images_tensor)
     reconstructions = vae_output.reconstruction
@@ -115,7 +148,7 @@ def plot_reconstruction_comparison(
         figsize=(config.figure_width, config.figure_height * 0.4),
     )
 
-    title = f"Reconstruction Comparison — {dataset_name} ({split_name})"
+    title = f"Reconstruction Comparison — {dataset_name} ({split_name}){title_suffix}"
     if is_quick_mode:
         title += " [QUICK MODE]"
     fig.suptitle(title, fontsize=11)
@@ -149,6 +182,7 @@ def plot_generated_samples(
     num_samples: int = 64,
     is_quick_mode: bool = False,
     seed: int = 42,
+    title_suffix: str = "",
 ) -> list[Path]:
     """Generate samples by decoding vectors sampled from the prior N(0, I).
 
@@ -161,6 +195,7 @@ def plot_generated_samples(
         num_samples: Number of samples to generate.
         is_quick_mode: Whether to add quick-mode warning.
         seed: Random seed for reproducible generation.
+        title_suffix: Extra text appended to the title (topology, samples).
 
     Returns:
         List of saved figure paths.
@@ -177,7 +212,10 @@ def plot_generated_samples(
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols * 0.8, n_rows * 0.8))
     axes_flat = axes.flatten() if hasattr(axes, "flatten") else [axes]
 
-    title = f"Generated Samples from Prior — {dataset_name} (latent_dim={model.latent_dimension})"
+    title = (
+        f"Generated Samples from Prior — {dataset_name} "
+        f"(latent_dim={model.latent_dimension}){title_suffix}"
+    )
     if is_quick_mode:
         title += " [QUICK MODE]"
     fig.suptitle(title, fontsize=9)

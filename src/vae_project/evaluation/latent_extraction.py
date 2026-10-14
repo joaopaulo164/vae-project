@@ -124,7 +124,7 @@ class LatentRepresentations:
             }
             if self.classifier_predictions is not None:
                 save_data["classifier_predictions"] = self.classifier_predictions
-            np.savez_compressed(npz_path, **save_data)
+            np.savez_compressed(npz_path, **save_data)  # type: ignore[arg-type]
             saved_paths.append(npz_path)
 
         return saved_paths

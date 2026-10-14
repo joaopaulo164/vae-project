@@ -266,6 +266,29 @@ class ModelCheckpointer:
         """
         return self.load_for_inference(model, device)
 
+    def load_supervised_head(
+        self,
+        supervised_head: _StatefulComponent,
+        device: torch.device,
+    ) -> None:
+        """Load the classification head weights stored in the best checkpoint.
+
+        Args:
+            supervised_head: Head receiving the weights.
+            device: Device to map checkpoint tensors to.
+
+        Raises:
+            CheckpointError: If the checkpoint holds no classification head
+                (for example, it was saved by an unsupervised run).
+        """
+        payload = self._read_payload(device)
+        if SUPERVISED_HEAD_STATE_KEY not in payload:
+            raise CheckpointError(
+                f"Checkpoint {self.best_checkpoint_path} holds no supervised head state "
+                f"('{SUPERVISED_HEAD_STATE_KEY}'). It was saved by an unsupervised run."
+            )
+        supervised_head.load_state_dict(payload[SUPERVISED_HEAD_STATE_KEY])
+
     def load_for_resume(
         self,
         model: VariationalAutoencoder,

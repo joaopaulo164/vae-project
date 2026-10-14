@@ -1,4 +1,4 @@
-﻿"""Command-line interface for the VAE project.
+"""Command-line interface for the VAE project.
 
 All operations are accessible via:
     python -m vae_project.cli <command> [options]
@@ -8,6 +8,7 @@ Available commands:
     train                   Train a VAE model
     select-topology         Run topology selection experiment
     compare-latent-dims     Compare multiple latent dimensions
+    run-factorial-protocol  Main protocol: topologies x latent dimensions (see docs)
     run-pipeline            Run the full experiment pipeline
     smoke-test              Run a quick smoke test with synthetic data
     extract-latents         Extract latent representations from a checkpoint
@@ -118,6 +119,45 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "Allow --output-dir to be an existing run directory and replace files with "
             "the same name. Without this flag an existing run is rejected."
+        ),
+    )
+
+    # run-factorial-protocol
+    protocol_parser = subparsers.add_parser(
+        "run-factorial-protocol",
+        help=(
+            "Run the main scientific protocol: topologies x latent dimensions, validation "
+            "selection, test of the winner and supervised extension"
+        ),
+    )
+    protocol_parser.add_argument(
+        "--config",
+        required=True,
+        type=Path,
+        help="Path to the factorial protocol YAML configuration file",
+    )
+    protocol_parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Base directory of the protocol runs (default: "
+            "artifacts/<dataset>/unsupervised/factorial_protocol). A new "
+            "run_YYYYMMDD_HHMMSS_<id> directory is always created inside it."
+        ),
+    )
+    protocol_parser.add_argument(
+        "--run-name",
+        default=None,
+        help="Optional identifier appended to the run directory name (default: random hex)",
+    )
+    protocol_parser.add_argument(
+        "--resume",
+        type=Path,
+        default=None,
+        help=(
+            "Existing protocol run directory to continue. The configuration must be the same "
+            "one that created the run."
         ),
     )
 
@@ -323,6 +363,52 @@ def _cmd_compare_latent_dims(args: argparse.Namespace) -> int:
         return 1
 
 
+def _cmd_run_factorial_protocol(args: argparse.Namespace) -> int:
+    """Handle the run-factorial-protocol command.
+
+    Args:
+        args: Parsed CLI arguments.
+
+    Returns:
+        Exit code: 0 when the protocol finished (or awaits the manual supervised
+        execution), 1 when it failed or could not start.
+    """
+    from vae_project.config.loader import ConfigurationError, load_config
+    from vae_project.experiments.factorial_protocol import run_factorial_protocol
+    from vae_project.experiments.protocol_models import ProtocolError
+    from vae_project.experiments.protocol_state import ProtocolStateError
+    from vae_project.utils.paths import ArtifactError
+
+    try:
+        config = load_config(args.config)
+    except (FileNotFoundError, ConfigurationError) as exc:
+        print(f"ERROR (configuration): {exc}", file=sys.stderr)
+        return 1
+
+    try:
+        result = run_factorial_protocol(
+            config,
+            base_output_dir=args.output_dir,
+            run_name=args.run_name,
+            resume_dir=args.resume,
+        )
+    except (ProtocolError, ProtocolStateError, ArtifactError) as exc:
+        print(f"ERROR (protocol): {exc}", file=sys.stderr)
+        return 1
+    except Exception as exc:
+        print(f"ERROR (protocol failed): {exc}", file=sys.stderr)
+        logger.exception("Factorial protocol failed")
+        return 1
+
+    print(f"Protocol status: {result.status}")
+    print(f"Artifacts: {result.protocol_directory}")
+    for name, path in result.report_paths.items():
+        print(f"  {name}: {path}")
+    if result.manual_command:
+        print(f"Run the supervised extension manually with: {result.manual_command}")
+    return 1 if result.status == "failed" else 0
+
+
 def _cmd_run_pipeline(args: argparse.Namespace) -> int:
     """Handle the run-pipeline command.
 
@@ -456,6 +542,7 @@ def main() -> None:
         "train": _cmd_train,
         "select-topology": _cmd_select_topology,
         "compare-latent-dims": _cmd_compare_latent_dims,
+        "run-factorial-protocol": _cmd_run_factorial_protocol,
         "run-pipeline": _cmd_run_pipeline,
         "smoke-test": _cmd_smoke_test,
     }

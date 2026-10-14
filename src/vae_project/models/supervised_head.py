@@ -75,4 +75,5 @@ class SupervisedClassificationHead(nn.Module):
             Class logits, shape (batch, num_classes).
             Note: raw logits, not probabilities. Use with CrossEntropyLoss.
         """
-        return self.classifier(latent_representation)
+        logits: Tensor = self.classifier(latent_representation)
+        return logits

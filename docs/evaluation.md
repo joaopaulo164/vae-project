@@ -19,9 +19,14 @@ depois de recarregar o melhor checkpoint:
 
 **`compare-latent-dims`**: para **cada** dimensão (2, 8, 16, 32) treina um VAE novo,
 seleciona o melhor checkpoint por loss total de validação, **recarrega** esse
-checkpoint em um modelo novo e só então extrai `latent_mean` e gera as evidências.
-A análise nunca usa os pesos da última época. Os dois fluxos usam o mesmo serviço
-(`experiments/latent_evidence.py`).
+checkpoint em um modelo novo e só então gera curvas de treinamento, reconstruções,
+amostras geradas, extração de `latent_mean` e espaço latente. A análise nunca usa
+os pesos da última época. Todos os fluxos usam o mesmo serviço
+(`experiments/single_experiment.py`, que reutiliza `experiments/latent_evidence.py`).
+
+**`run-factorial-protocol`**: executa o mesmo serviço para as 12 combinações
+(3 topologias × 4 dimensões), seleciona a vencedora só pela validação e a avalia
+no teste (seção 8).
 
 O classificador linear, as métricas numéricas de reconstrução, ARI/NMI do K-Means e
 a trustworthiness estão implementados, mas **não** fazem parte desses fluxos:
@@ -135,6 +140,38 @@ A avaliação em validação é segura durante a seleção de modelo. A avaliaç
 (`run_final_evaluation`) é reservada ao final e marcada `evaluation_type: final_test`.
 Use a mesma configuração que gerou o checkpoint; caso contrário, o carregamento falha
 ou compara a arquitetura errada.
+
+### Avaliação no teste do protocolo fatorial
+
+No `run-factorial-protocol`, `experiments/heldout_evaluation.py` avalia **somente a
+vencedora** (e, depois, a extensão supervisionada), uma única vez, carregando o
+melhor checkpoint já produzido (nenhum retreino). O fluxo é: configuração
+selecionada → validação de topologia e dimensão contra os metadados do checkpoint →
+carga dos pesos → carga do conjunto de teste → métricas → evidências finais.
+
+`final_evaluation/tables/final_test_metrics.csv` contém, por linha, as perdas
+médias por lote (mesma convenção da validação, portanto comparáveis a ela):
+
+| Coluna | Observação |
+|--------|------------|
+| `test_reconstruction_loss`, `test_kl_divergence`, `test_total_loss` | Sempre presentes |
+| `test_classification_loss`, `test_accuracy`, `test_precision_macro`, `test_recall_macro`, `test_f1_macro` | Apenas em modelos supervisionados; vazias (nunca zero) no modo não supervisionado |
+
+A matriz de confusão do teste (`test_confusion_matrix.csv`) existe apenas na
+avaliação supervisionada. Os resultados trazem `split: test`,
+`phase: final evaluation` e `selected configuration: true`. O teste não altera
+topologia, dimensão, hiperparâmetros, melhor época, checkpoint nem a decisão de
+seleção, e as outras 11 combinações nunca são avaliadas nele.
+
+### Comparação entre os modos
+
+A `total_loss` do modo supervisionado inclui o termo
+`classification_loss_weight × classification loss` e, portanto, **não** é
+comparável à do modo não supervisionado. `comparison_with_unsupervised.csv` reúne,
+lado a lado e sem inferir conclusões: reconstruction loss, KL, classification
+loss/acurácia (quando aplicável), métricas de projeção, variância explicada do PCA,
+checkpoints e figuras. A interpretação (organização visual, reconstrução) fica a
+cargo do pesquisador.
 
 ## 9. Dados sintéticos
 
