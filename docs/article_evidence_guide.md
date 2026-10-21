@@ -1,37 +1,90 @@
-# Guia de Evid�ncias para Artigo Cient�fico
+# Guia de Evidências para Artigo Científico
 
-Este documento mapeia perguntas de pesquisa a artefatos gerados pelo projeto.
-**N�o preencha as colunas de resultados antes de executar os experimentos.**
+Este documento mapeia perguntas de pesquisa aos artefatos gerados pelo projeto.
+**Não preencha resultados antes de executar os experimentos.** Convenção de idioma:
+esta documentação é em português; os resumos gerados (`run_summary.md`,
+`latent_dimension_comparison_summary.md`, `protocol_summary.md`,
+`selection_summary.md`, `comparison_summary.md`, `scientific_evidence_index.md`)
+são em inglês.
 
-## Mapeamento: Pergunta ? Evid�ncia ? Arquivo
+Os caminhos do **protocolo fatorial principal** são relativos a
+`artifacts/<dataset>/unsupervised/factorial_protocol/run_<timestamp>_<id>/`
+(abreviado como `PROTO/`). Os caminhos da comparação especializada de dimensões são
+relativos a
+`artifacts/<dataset>/unsupervised/latent_dimension_comparison/run_<timestamp>_<id>/`
+(abreviado como `RUN/`). Cada execução tem seu próprio diretório; cite no artigo o
+nome exato do diretório usado.
 
-| Pergunta de Pesquisa | Evid�ncia Necess�ria | Arquivo Gerado | Figura/Tabela | Cuidados |
-|----------------------|---------------------|----------------|---------------|---------|
-| H� forma��o visual de clusters? | Proje��es coloridas por classe | figures/latent_space/ | latent_space_pca/umap/tsne_Nd.png | Verificar em m�ltiplas proje��es |
-| Quais classes se sobrep�em? | An�lise visual das proje��es | figures/latent_space/ | Todas as proje��es | Artefato de proje��o vs. sobreposi��o real |
-| Quanto de vari�ncia o PCA explica? | pca_explained_variance.csv | tables/ | pca_explained_variance_Nd.png | V�lido apenas para PCA |
-| Qual topologia tem menor val loss? | topology_selection_results.csv | topology_selection/ | Tabela | Um seed; variabilidade n�o estimada |
-| Dimens�o latente afeta separa��o? | latent_dimension_comparison.csv | dimension_comparison/ | Tabela | Capacidade cresce com dimens�o |
-| MNIST vs Fashion-MNIST diferem? | Comparar figuras dos dois datasets | artifacts/mnist/ vs artifacts/fashion_mnist/ | Proje��es side-by-side | Rodar mesma config nos dois |
-| Componente supervisionado ajuda? | Comparar unsupervised vs supervised | artifacts/unsupervised/ vs supervised/ | Figuras lado a lado | Artefatos em diret�rios separados |
+## Evidências do protocolo fatorial
 
-## Evid�ncias para Se��o de Metodologia
+| Pergunta de pesquisa | Evidência | Arquivo | Cuidados |
+|---|---|---|---|
+| Qual combinação topologia × dimensão teve menor validation loss? | `selection/factorial_comparison.csv`, `selection/selected_configuration.yaml`, `selection/selection_summary.md` | `PROTO/selection/` | Seleção só por validação, um seed; não indica melhor agrupamento |
+| Como o treinamento evoluiu em cada combinação? | Curvas de treinamento | `PROTO/grid/<topologia>/latent_dim_<N>/figures/training/` | Melhor época e early stopping marcados |
+| Qual topologia reconstrói melhor? | Reconstruções com os mesmos exemplos | `.../figures/reconstructions/` | Julgamento visual do pesquisador |
+| As amostras do prior são plausíveis? | Amostras geradas com seed compartilhado | `.../figures/generated_samples/` | Julgamento visual |
+| Há clusters / separação de classes / sobreposição? | Espaço latente direto (2D) ou PCA, UMAP e t-SNE (8, 16, 32) | `.../figures/latent_space/` | Evidência principal; mais de uma projeção; mesmas amostras entre combinações |
+| Quanto da variância o PCA explica? | `tables/pca_explained_variance.csv` | `.../tables/` | Somente PCA |
+| Como a dimensão e a topologia afetam a organização? | Figuras lado a lado + `tables/projection_metrics.csv` | `PROTO/grid/` | Métricas subsidiárias |
+| Desempenho da vencedora em dados nunca usados na seleção | `final_evaluation/tables/final_test_metrics.csv` e figuras | `PROTO/final_evaluation/` | Teste usado uma vez, somente na vencedora |
+| A supervisão melhora a separação / afeta a reconstrução? | `supervised_extension/comparison_with_unsupervised.csv` e `comparison_summary.md`, mais as figuras de ambos | `PROTO/supervised_extension/` | Não comparar `total_loss` entre modos |
 
-- config_resolved.yaml: par�metros exatos do experimento
-- environment.json: vers�es de bibliotecas e hardware
-- tables/class_distribution.csv: distribui��o de classes por split
+Metodologia do protocolo: `protocol_config_resolved.yaml`, `protocol_state.json`,
+`protocol_manifest.json`, `shared/environment.json`, `shared/*.csv`,
+`shared/generation_seed.json` e os manifestos locais (tamanho e SHA-256).
 
-## Evid�ncias para Se��o de Resultados
+## Evidências da comparação especializada de dimensões
 
-- figures/training/: curvas de treinamento
-- figures/reconstructions/: qualidade de reconstru��o
-- figures/latent_space/: an�lise do espa�o latente
-- tables/projection_metrics.csv: m�tricas subsidi�rias
+Os caminhos desta seção usam `RUN/`.
 
-## Limita��es a Declarar no Artigo
+## Regra de elegibilidade
 
-1. Um seed por configura��o � variabilidade n�o estimada
-2. Arquitetura MLP totalmente conectada � sem estrutura espacial
-3. M�tricas de clustering usam r�tulos como clusters, n�o clusters descobertos
-4. t-SNE e UMAP: n�o reportar vari�ncia explicada
-5. Resultados podem diferir entre vers�es de PyTorch/CUDA/hardware
+Somente execuções com `data_origin = real` (MNIST e Fashion-MNIST) podem sustentar
+afirmações científicas. Artefatos de testes e do smoke test (`data_origin =
+synthetic`, diretório com `smoke_test`/`synthetic`) **não** devem ser citados.
+
+## Mapeamento: pergunta → evidência → arquivo
+
+| Pergunta de pesquisa | Evidência | Arquivo | Cuidados |
+|---|---|---|---|
+| Há formação visual de clusters? | Projeções coloridas por classe | `RUN/latent_dim_N/figures/latent_space/` (`latent_space_direct_2d`, `latent_space_pca_Nd`, `latent_space_umap_Nd`, `latent_space_tsne_Nd`) | Verificar em mais de uma projeção; para N=2 usar o gráfico direto |
+| Quais classes se sobrepõem? | Análise visual das projeções | mesmas figuras | Distinguir artefato de projeção de sobreposição real |
+| Quanto da variância o PCA explica? | `tables/pca_explained_variance.csv` e `pca_explained_variance_Nd` | `RUN/latent_dim_N/` (N > 2) | Válido **apenas** para PCA; não existe para N=2, UMAP ou t-SNE |
+| Qual dimensão tem menor loss de validação? | `latent_dimension_comparison.csv` | `RUN/` | Afirmação numérica sobre a loss; não diz qual dimensão agrupa melhor. Um seed |
+| A dimensão latente afeta a separação? | Figuras de todas as dimensões lado a lado + `tables/projection_metrics.csv` | `RUN/latent_dim_*/` | Métricas são subsidiárias; capacidade cresce com a dimensão |
+| MNIST e Fashion-MNIST diferem? | Comparar os `RUN/` dos dois datasets | `artifacts/mnist/...` e `artifacts/fashion_mnist/...` | Mesma configuração nos dois |
+| O componente supervisionado ajuda? | Comparar execuções não supervisionada e supervisionada | diretórios `unsupervised/` e `supervised/` | Experimento independente, executado manualmente; nunca misturar |
+| Qual topologia tem menor val loss? | `topology_selection_results.csv` | `topology_selection/` | Um seed; variabilidade não estimada |
+
+## Evidências para a seção de Metodologia
+
+- `latent_dim_N/config_resolved.yaml`: parâmetros exatos de cada dimensão;
+- `latent_dim_N/checkpoints/checkpoint_metadata.json` e `best_model.pt`
+  (`resolved_config`, seed, topologia, dimensão latente);
+- `latent_dim_N/artifact_manifest.json`: arquivos, tamanhos e SHA-256;
+- `latent_dim_N/latent_data/projection_sample_indices.csv`: amostra idêntica entre
+  dimensões;
+- `environment.json` (execuções `train`/`run-pipeline`): versões e hardware.
+
+## Evidências para a seção de Resultados
+
+- `latent_dim_N/tables/training_history.csv`: curvas de treinamento;
+- `latent_dim_N/figures/latent_space/`: espaço latente (PNG e SVG);
+- `latent_dim_N/tables/projection_metrics.csv`: métricas subsidiárias;
+- `latent_dim_N/run_summary.md` e `latent_dimension_comparison_summary.md`:
+  resumos (em inglês);
+- `latent_dimension_comparison.csv`: tabela consolidada.
+
+## Limitações a declarar
+
+1. Um seed por configuração (42): a variabilidade entre seeds não é estimada.
+   Diferenças pequenas entre as combinações da grade (15 na configuração padrão)
+   podem ser variação de treinamento.
+2. Arquitetura MLP totalmente conectada, sem estrutura espacial.
+3. As métricas usam os rótulos como clusters, não clusters descobertos.
+4. UMAP e t-SNE distorcem distâncias globais; não reportar variância explicada
+   para eles.
+5. A comparação principal é não supervisionada; o componente supervisionado é um
+   experimento separado.
+6. Os resultados podem variar entre versões de PyTorch/CUDA e hardware.
+7. A seleção do modelo usa apenas o split de validação; o teste não é usado.

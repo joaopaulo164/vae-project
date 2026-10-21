@@ -42,7 +42,24 @@ runtime:
 
 reproducibility:
   global_seed: 42
+  deterministic_mode: true
+
+splits:
+  seed: 42
+
+projections:
+  methods: [pca, umap, tsne]
+  umap:
+    random_state: 42
+  tsne:
+    random_state: 42
+  sampling:
+    enabled: true
+    max_samples: 5000
+    stratified: true
+    seed: 42
 
 latent_dimension_comparison:
+  enabled: true
   dimensions: [2, 8, 16, 32]
   fixed_topology: medium

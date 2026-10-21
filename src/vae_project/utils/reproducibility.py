@@ -8,6 +8,7 @@ library versions cannot be guaranteed.
 from __future__ import annotations
 
 import logging
+import os
 import random
 
 import numpy as np
@@ -47,6 +48,8 @@ def set_global_seed(seed: int, deterministic: bool = False) -> None:
         torch.cuda.manual_seed_all(seed)
 
     if deterministic:
+        # Required by cuBLAS for deterministic CUDA matmuls; ignored on CPU.
+        os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
         torch.use_deterministic_algorithms(True)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False

@@ -60,18 +60,85 @@ Após rodar ambos os pipelines, compare:
 
 ## 3. Impacto da Dimensão Latente
 
+Fontes: `latent_dimension_comparison.csv`, `latent_dimension_comparison_summary.md` e
+as figuras de cada `latent_dim_N/figures/latent_space/`.
+
 - Como o loss de reconstrução varia com a dimensão latente?
 - Como o KL divergence varia?
 - Dimensões maiores produzem separação visual melhor?
 - A dimensão 2 (visualizável diretamente) preserva estrutura similar às demais?
+- As projeções PCA, UMAP e t-SNE das dimensões 8, 16 e 32 concordam entre si?
+
+Cuidados específicos:
+
+- A dimensão 2 é desenhada diretamente (`latent_mean_0` × `latent_mean_1`). As
+  demais são **projetadas** para 2D; formas e distâncias não são diretamente
+  comparáveis com o gráfico 2D direto.
+- A `validation_total_loss` do resumo consolidado indica apenas qual dimensão teve a
+  menor loss de validação. Ela **não** indica qual dimensão forma melhores
+  agrupamentos; isso exige a análise visual.
+- Somente o PCA possui variância explicada. Não reporte esse valor para UMAP ou t-SNE.
+- Projeções de dimensões maiores usam uma amostra estratificada (os títulos indicam
+  "sample of N"). Os índices estão em `projection_sample_indices.csv`.
+- Dimensões com status `partial` ou `failed` têm evidências incompletas; consulte
+  `error_summary` e o `run_summary.md` da dimensão antes de comparar.
+- O experimento é não supervisionado e usa um único seed (42). Diferenças pequenas
+  entre dimensões podem ser variação de treinamento e não devem ser tratadas como
+  conclusivas sem repetição.
+
+---
+
+## 3.1 Protocolo fatorial: topologia × dimensão
+
+No `run-factorial-protocol`, cada uma das 15 combinações da grade padrão (3
+topologias × 2, 4, 8, 16 e 32) tem figuras de
+treinamento, reconstruções, amostras geradas e espaço latente. Perguntas-guia
+(responda **você**, olhando as figuras; o código não preenche observações visuais):
+
+- Existem clusters visualmente identificáveis?
+- Os rótulos estão separados? Quais classes se sobrepõem?
+- Qual topologia apresenta reconstruções mais nítidas (mesmos exemplos em todas as
+  combinações)?
+- Como a dimensão latente afeta a organização do espaço latente?
+- A combinação com menor validation loss também apresenta a melhor separação
+  visual? (A seleção automática usa só a loss; não use a aparência das projeções
+  para escolher a vencedora.)
+- As amostras geradas do prior são plausíveis?
+
+Cuidados específicos:
+
+- Todos os modelos usam os mesmos exemplos de projeção e de reconstrução
+  (`shared/`), mas os valores latentes são diferentes entre modelos; formas e
+  distâncias não são diretamente comparáveis entre combinações.
+- A dimensão 2 é desenhada diretamente; 4, 8, 16 e 32 são projetadas por PCA, UMAP e
+  t-SNE. Somente o PCA possui variância explicada.
+- A dimensão 4 foi incluída para preencher o intervalo entre 2D e 8D e permitir
+  avaliar os ganhos marginais ao longo da progressão 2, 4, 8, 16 e 32. Não há
+  resultado presumido: compare 2D, 4D e 8D apenas pelo que as figuras e as tabelas
+  mostrarem.
+- A vencedora tem a menor `validation_total_loss`; isso não significa melhor
+  agrupamento. Com um único seed (42), diferenças pequenas podem ser variação de
+  treinamento.
+- O teste (`final_evaluation/`) foi usado apenas na vencedora e não participou da
+  seleção. Não escolha outra combinação com base nele.
+- Combinações com status `partial` ou `failed` têm evidências incompletas; consulte
+  o `run_summary.md` e a coluna de status em `factorial_comparison.csv`.
 
 ---
 
 ## 4. Componente Supervisionado (quando habilitado)
 
+No protocolo fatorial, a extensão supervisionada usa a mesma topologia, dimensão,
+seed e hiperparâmetros da vencedora (modelo novo). A `total_loss` supervisionada
+tem composição diferente (inclui a classification loss) e **não** deve ser
+comparada numericamente com a não supervisionada; compare reconstruction loss, KL,
+reconstruções, organização visual, métricas subsidiárias e desempenho
+classificatório (`supervised_extension/comparison_summary.md`).
+
 - A separação visual melhorou em relação ao VAE não supervisionado?
 - O loss de reconstrução foi afetado negativamente?
 - A melhora na separação visual é proporcional ao custo em reconstrução?
+- A supervisão melhora a separação? A supervisão afeta a reconstrução?
 
 ---
 

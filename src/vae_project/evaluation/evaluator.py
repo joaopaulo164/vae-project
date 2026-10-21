@@ -53,7 +53,6 @@ class VAEEvaluator:
         splits: DataSplits,
         supervised_head: SupervisedClassificationHead | None = None,
     ) -> None:
-
         self.model = model
         self.config = config
         self.device = device

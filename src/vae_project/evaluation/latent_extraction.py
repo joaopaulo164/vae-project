@@ -11,7 +11,7 @@ the stochastic noise introduced by the reparameterization trick.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -42,6 +42,8 @@ class LatentRepresentations:
         latent_dimension: Dimensionality of the latent space.
         dataset_name: Dataset identifier.
         is_quick_mode: Whether this was a quick smoke test run.
+        metadata: Constant provenance values (e.g. run_id, seed,
+            experiment_type) written as extra columns by ``to_dataframe``.
     """
 
     sample_indices: np.ndarray
@@ -55,21 +57,28 @@ class LatentRepresentations:
     dataset_name: str
     classifier_predictions: np.ndarray | None = None
     is_quick_mode: bool = False
+    metadata: dict[str, object] = field(default_factory=dict)
 
     def to_dataframe(self) -> pd.DataFrame:
         """Convert to a pandas DataFrame for analysis and export.
 
         Returns:
             DataFrame with one row per sample and columns for:
-            sample_index, split, label, class_name, latent_mean_0..N,
-            latent_log_var_0..N, latent_sample_0..N, [classifier_pred].
+            sample_index, split, label, class_name, [metadata columns],
+            latent_mean_0..N, latent_log_var_0..N, latent_sample_0..N,
+            [classifier_pred].
         """
+        n_rows = len(self.labels)
         rows: dict[str, list] = {
             "sample_index": self.sample_indices.tolist(),
-            "split": [self.split_name] * len(self.labels),
+            "split": [self.split_name] * n_rows,
             "label": self.labels.tolist(),
             "class_name": [self.class_names[lbl] for lbl in self.labels],
+            "dataset": [self.dataset_name] * n_rows,
+            "latent_dimension": [self.latent_dimension] * n_rows,
         }
+        for column_name, column_value in self.metadata.items():
+            rows[column_name] = [column_value] * n_rows
 
         for dim_idx in range(self.latent_dimension):
             rows[f"latent_mean_{dim_idx}"] = self.latent_means[:, dim_idx].tolist()
@@ -116,7 +125,7 @@ class LatentRepresentations:
             }
             if self.classifier_predictions is not None:
                 save_data["classifier_predictions"] = self.classifier_predictions
-            np.savez_compressed(npz_path, **save_data)
+            np.savez_compressed(npz_path, **save_data)  # type: ignore[arg-type]
             saved_paths.append(npz_path)
 
         return saved_paths
@@ -133,6 +142,7 @@ def extract_latent_representations(
     supervised_head: SupervisedClassificationHead | None = None,
     use_latent_mean_for_classifier: bool = True,
     is_quick_mode: bool = False,
+    metadata: dict[str, object] | None = None,
 ) -> LatentRepresentations:
     """Extract latent representations for all samples in a data loader.
 
@@ -150,6 +160,7 @@ def extract_latent_representations(
         supervised_head: Optional trained classification head.
         use_latent_mean_for_classifier: Whether to use mu for classification.
         is_quick_mode: Whether this is a quick smoke test run.
+        metadata: Optional constant provenance columns (run_id, seed, ...).
 
     Returns:
         LatentRepresentations with all extracted vectors and metadata.
@@ -226,4 +237,5 @@ def extract_latent_representations(
         dataset_name=dataset_name,
         classifier_predictions=classifier_predictions,
         is_quick_mode=is_quick_mode,
+        metadata=dict(metadata) if metadata else {},
     )

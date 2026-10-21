@@ -45,26 +45,34 @@ class PCAResult:
     n_samples: int
     latent_dimension: int
 
-    def save_explained_variance_csv(self, output_path: Path) -> None:
+    def save_explained_variance_csv(
+        self,
+        output_path: Path,
+        extra_columns: dict[str, object] | None = None,
+    ) -> None:
         """Save explained variance table to CSV.
 
         Args:
             output_path: Output path for the CSV file.
+            extra_columns: Optional constant descriptive columns (dataset,
+                split, seed, experiment_type, ...) appended to every row.
         """
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         rows = []
         for comp_idx in range(self.n_components):
-            rows.append(
-                {
-                    "component": comp_idx + 1,
-                    "explained_variance_ratio": float(self.explained_variance_ratio[comp_idx]),
-                    "cumulative_explained_variance": float(
-                        self.cumulative_explained_variance[comp_idx]
-                    ),
-                }
-            )
+            row: dict[str, object] = {
+                "latent_dimension": self.latent_dimension,
+                "component": comp_idx + 1,
+                "explained_variance_ratio": float(self.explained_variance_ratio[comp_idx]),
+                "cumulative_explained_variance_ratio": float(
+                    self.cumulative_explained_variance[comp_idx]
+                ),
+                "n_samples": self.n_samples,
+            }
+            row.update(extra_columns or {})
+            rows.append(row)
         df = pd.DataFrame(rows)
         df.to_csv(output_path, index=False)
         logger.info("PCA explained variance saved: %s", output_path)

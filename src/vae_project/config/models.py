@@ -347,10 +347,161 @@ class LoggingConfig:
 
 @dataclass
 class LatentDimensionComparisonConfig:
-    """Configuration for comparing multiple latent dimensions."""
+    """Configuration for comparing multiple latent dimensions.
 
+    Each entry of ``dimensions`` is an independent training run. The list
+    lives exclusively here; ``model.latent_dimension`` always holds a single
+    integer for a single model.
+
+    Attributes:
+        enabled: Whether the comparison experiment may be executed.
+        dimensions: Latent dimensions to train, one independent VAE each.
+        fixed_topology: Name of the previously selected topology that every
+            model in the comparison uses (no topology search is performed).
+    """
+
+    enabled: bool = True
     dimensions: list[int] = field(default_factory=lambda: [2, 8, 16, 32])
     fixed_topology: str = "medium"
+
+
+# Standard topologies of the project: name -> encoder hidden layer dimensions.
+STANDARD_TOPOLOGIES: dict[str, list[int]] = {
+    "small": [256, 128],
+    "medium": [512, 256],
+    "deep": [512, 256, 128],
+}
+
+# Metrics available (from validation only) to rank factorial combinations.
+SELECTION_LOSS_METRICS = (
+    "validation_total_loss",
+    "validation_reconstruction_loss",
+    "validation_kl_divergence",
+)
+SELECTION_NUMERIC_METRICS = (*SELECTION_LOSS_METRICS, "parameter_count", "latent_dimension")
+SELECTION_TEXT_METRICS = ("topology_name",)
+SELECTION_NUMERIC_DIRECTIONS = ("minimize", "maximize")
+SELECTION_TEXT_DIRECTIONS = ("ascending", "descending")
+SUPERVISED_EXECUTION_MODES = ("automatic", "manual")
+FINAL_EVALUATION_SPLIT = "test"
+
+
+@dataclass
+class ProtocolConfig:
+    """Behaviour of the factorial protocol run itself.
+
+    Attributes:
+        name: Human-readable protocol name stored in reports and manifests.
+        resume_if_interrupted: Allow ``--resume`` on an interrupted run.
+        prevent_overwrite: Never write into an existing protocol run directory.
+        continue_on_noncritical_evidence_error: Keep a combination whose
+            training succeeded even if a projection or figure failed (it is
+            then marked ``partial``). When False such a combination is treated
+            as failed and excluded from the selection.
+    """
+
+    name: str = "factorial_protocol"
+    resume_if_interrupted: bool = True
+    prevent_overwrite: bool = True
+    continue_on_noncritical_evidence_error: bool = True
+
+
+@dataclass
+class TieBreakerConfig:
+    """One tie-breaking criterion applied in the order it is listed."""
+
+    metric: str = "validation_reconstruction_loss"
+    direction: str = "minimize"
+
+
+def _default_tie_breakers() -> list[TieBreakerConfig]:
+    """Return the documented tie-breaking order."""
+    return [
+        TieBreakerConfig("validation_reconstruction_loss", "minimize"),
+        TieBreakerConfig("parameter_count", "minimize"),
+        TieBreakerConfig("latent_dimension", "minimize"),
+        TieBreakerConfig("topology_name", "ascending"),
+    ]
+
+
+@dataclass
+class SelectionConfig:
+    """Rule used to choose the winning combination from validation results.
+
+    Attributes:
+        primary_metric: Validation metric ranked first.
+        direction: ``minimize`` or ``maximize``.
+        tolerance: Absolute difference under which two primary values count
+            as equal, so the tie-breakers decide.
+        tie_breakers: Ordered criteria applied among tied combinations.
+    """
+
+    primary_metric: str = "validation_total_loss"
+    direction: str = "minimize"
+    tolerance: float = 1.0e-6
+    tie_breakers: list[TieBreakerConfig] = field(default_factory=_default_tie_breakers)
+
+    def __post_init__(self) -> None:
+        """Normalize tie-breakers given as dictionaries."""
+        self.tie_breakers = [
+            TieBreakerConfig(**item) if isinstance(item, dict) else item
+            for item in self.tie_breakers
+        ]
+
+
+@dataclass
+class FactorialComparisonConfig:
+    """Full factorial grid: topologies x latent dimensions.
+
+    Attributes:
+        enabled: Whether the factorial protocol may run.
+        topologies: Standard topology names (see ``STANDARD_TOPOLOGIES``).
+        latent_dimensions: Latent dimensions, each trained for every topology.
+        generate_full_evidence: Generate every evidence category per combination.
+        selection: Winner selection rule (validation only).
+    """
+
+    enabled: bool = False
+    topologies: list[str] = field(default_factory=lambda: list(STANDARD_TOPOLOGIES))
+    latent_dimensions: list[int] = field(default_factory=lambda: [2, 4, 8, 16, 32])
+    generate_full_evidence: bool = True
+    selection: SelectionConfig = field(default_factory=SelectionConfig)
+
+    def __post_init__(self) -> None:
+        """Normalize the nested selection block."""
+        if isinstance(self.selection, dict):
+            self.selection = SelectionConfig(**self.selection)
+
+
+@dataclass
+class FinalEvaluationConfig:
+    """Single evaluation of the selected configuration on the test split."""
+
+    enabled: bool = True
+    split: str = FINAL_EVALUATION_SPLIT
+    use_selected_configuration: bool = True
+    use_best_checkpoint: bool = True
+    retrain_selected_configuration: bool = False
+
+
+@dataclass
+class SupervisedExtensionConfig:
+    """Supervised extension trained with the selected configuration.
+
+    Attributes:
+        enabled: Run (or prepare) the extension.
+        execution_mode: ``automatic`` trains it inside the protocol;
+            ``manual`` only writes the resolved configuration.
+        use_selected_configuration: Reuse the selected topology and dimension.
+        classification_loss_weight: Weight of the classification loss.
+        use_latent_mean: Classify from ``latent_mean`` instead of a sample.
+    """
+
+    enabled: bool = False
+    execution_mode: str = "automatic"
+    use_selected_configuration: bool = True
+    classification_loss_weight: float = 1.0
+    use_latent_mean: bool = True
 
 
 @dataclass
@@ -380,7 +531,20 @@ class ExperimentConfig:
     latent_dimension_comparison: LatentDimensionComparisonConfig = field(
         default_factory=LatentDimensionComparisonConfig
     )
+    protocol: ProtocolConfig = field(default_factory=ProtocolConfig)
+    factorial_comparison: FactorialComparisonConfig = field(
+        default_factory=FactorialComparisonConfig
+    )
+    final_evaluation: FinalEvaluationConfig = field(default_factory=FinalEvaluationConfig)
+    supervised_extension: SupervisedExtensionConfig = field(
+        default_factory=SupervisedExtensionConfig
+    )
     run_name: str | None = None
+
+    @property
+    def experiment_type(self) -> str:
+        """Return 'supervised' or 'unsupervised' based on the supervised head."""
+        return "supervised" if self.supervised_component.enabled else "unsupervised"
 
     def __post_init__(self) -> None:
         """Normalize all nested config objects from dicts."""
@@ -425,3 +589,11 @@ class ExperimentConfig:
             self.latent_dimension_comparison = LatentDimensionComparisonConfig(
                 **self.latent_dimension_comparison
             )
+        if isinstance(self.protocol, dict):
+            self.protocol = ProtocolConfig(**self.protocol)
+        if isinstance(self.factorial_comparison, dict):
+            self.factorial_comparison = FactorialComparisonConfig(**self.factorial_comparison)
+        if isinstance(self.final_evaluation, dict):
+            self.final_evaluation = FinalEvaluationConfig(**self.final_evaluation)
+        if isinstance(self.supervised_extension, dict):
+            self.supervised_extension = SupervisedExtensionConfig(**self.supervised_extension)

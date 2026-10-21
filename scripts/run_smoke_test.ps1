@@ -9,7 +9,7 @@ Write-Host ""
 python -m vae_project.cli smoke-test
 
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "" 
+    Write-Host ""
     Write-Host "Smoke test PASSED." -ForegroundColor Green
 } else {
     Write-Host ""

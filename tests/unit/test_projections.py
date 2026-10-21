@@ -1,4 +1,4 @@
-﻿"""Unit tests for projections (PCA, UMAP, t-SNE) and sampling."""
+"""Unit tests for projections (PCA, UMAP, t-SNE) and sampling."""
 
 from __future__ import annotations
 
